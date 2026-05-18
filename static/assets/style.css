@@ -490,3 +490,24 @@ html.theme-dark .tag.category:hover { background: rgba(52, 211, 153, 0.22); }
   margin-top: 0.3rem;
 }
 
+
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 0 2rem;
+}
+
+.pagination span {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.pagination .btn {
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+

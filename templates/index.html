@@ -32,3 +32,11 @@
   {{/posts}}
 </section>
 
+
+
+<nav class="pagination" aria-label="Paginacion">
+  {{#prevPage}}<a class="btn" href="{{prevPage}}">← Anterior</a>{{/prevPage}}
+  <span>Pagina {{currentPage}} de {{totalPages}}</span>
+  {{#nextPage}}<a class="btn" href="{{nextPage}}">Siguiente →</a>{{/nextPage}}
+</nav>
+

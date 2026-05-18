@@ -134,7 +134,7 @@ async function seed() {
       { type: 'callout', title: 'En progreso', text: 'Este post esta en borrador y se publicara la proxima semana.' }
     ]),
     excerpt: 'Desde limiters en memoria hasta Redis: como proteger tu API Node.js contra fuerza bruta y DDoS sin dependencias externas.',
-    status: 'draft',
+    status: 'published',
     authorId: mauricio._id,
     taxonomyIds: [catSeguridad._id, tagNode._id, tagAPI._id],
     meta: { readTime: 15 }
@@ -166,6 +166,26 @@ async function seed() {
     meta: { readTime: 10 }
   });
   console.log('Post: Git workflows que escalan...');
+
+
+  // Post 6
+  await createPost({
+    title: 'Por que los JSON databases son el futuro del contenido web',
+    content: JSON.stringify([
+      { type: 'paragraph', text: 'La industria del software ha pasado por ciclos de centralizacion y descentralizacion. De los mainframes a los client-server, de las nubes a los edge functions. El siguiente ciclo ya esta en marcha: las bases de datos documentales embebidas.' },
+      { type: 'heading', text: 'Menos infraestructura, mas contenido' },
+      { type: 'paragraph', text: 'Cada vez que agregas una base de datos externa a tu stack, introduces un punto de fallo, una latencia de red, y una curva de aprendizaje. Con una DB JSON embebida, tu aplicacion es autocontenida.' },
+      { type: 'callout', text: 'Un sitio estatico generado desde JSON puede desplegarse en GitHub Pages, Cloudflare Pages, Netlify, o cualquier CDN sin configurar ni un solo servidor.' },
+      { type: 'paragraph', text: 'Esto no significa que SQL este muerto. Significa que para el 80% de los casos de uso de CMS, una DB documental embebida es suficiente, mas rapida, y mas simple.' }
+    ]),
+    excerpt: 'De las bases de datos relacionales a los documentos JSON embebidos: por que la proxima generacion de CMS no necesita SQL.',
+    status: 'published',
+    authorId: mauricio._id,
+    taxonomyIds: [catArquitectura._id, tagJS._id, tagNode._id],
+    featuredImage: 'https://images.unsplash.com/photo-1516116216624-53e697fedbea?w=1200&h=600&fit=crop',
+    meta: { readTime: 7 }
+  });
+  console.log('Post: Por que los JSON databases...');
 
   flushAll();
   console.log('\nBlog realista creado. 5 posts (4 publicados, 1 draft), 4 categorias, 10 tags.');

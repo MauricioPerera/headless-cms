@@ -5,6 +5,8 @@ const CONFIG = {
   siteName: process.env.SITE_NAME || 'Mi Blog Headless',
   siteDescription: process.env.SITE_DESCRIPTION || 'Blog generado con Headless CMS',
   siteUrl: (process.env.SITE_URL || '').replace(/\/$/, '') + '/',
+  siteOgImage: process.env.SITE_OG_IMAGE || '',
+  postsPerPage: parseInt(process.env.POSTS_PER_PAGE, 10) || 5,
   basePath: process.env.BASE_PATH || '/',
 };
 
@@ -208,33 +210,61 @@ async function build() {
   // Posts
   for (const post of enrichedPosts) {
     const postHtml = render(postTpl, { ...post, basePath: CONFIG.basePath });
+    const canonicalUrl = CONFIG.siteUrl + 'posts/' + post.slug + '.html';
+    const ogImage = post.featuredImage ? post.featuredImage.src : CONFIG.siteOgImage;
     const fullHtml = render(layoutTpl, {
       title: post.title,
       description: post.excerpt,
       siteName: CONFIG.siteName,
       basePath: CONFIG.basePath,
       content: postHtml,
+      canonicalUrl,
+      ogTitle: post.title,
+      ogDescription: post.excerpt,
+      ogImage: ogImage || canonicalUrl,
+      ogType: 'article',
     });
     writeFile(path.join(DIST_DIR, 'posts', `${post.slug}.html`), fullHtml);
   }
   console.log(`  Generated ${enrichedPosts.length} post pages`);
 
-  // Index
-  const indexHtml = render(indexTpl, {
-    siteName: CONFIG.siteName,
-    siteDescription: CONFIG.siteDescription,
-    basePath: CONFIG.basePath,
-    posts: enrichedPosts,
-  });
-  const indexFull = render(layoutTpl, {
-    title: 'Inicio',
-    description: CONFIG.siteDescription,
-    siteName: CONFIG.siteName,
-    basePath: CONFIG.basePath,
-    content: indexHtml,
-  });
-  writeFile(path.join(DIST_DIR, 'index.html'), indexFull);
-  console.log('  Generated index.html');
+  // Index con paginacion
+  const perPage = CONFIG.postsPerPage;
+  const totalPages = Math.ceil(enrichedPosts.length / perPage) || 1;
+  for (let page = 1; page <= totalPages; page++) {
+    const start = (page - 1) * perPage;
+    const pagePosts = enrichedPosts.slice(start, start + perPage);
+    const prevPage = page > 1 ? (page === 2 ? CONFIG.basePath : CONFIG.basePath + 'page/' + (page - 1) + '.html') : null;
+    const nextPage = page < totalPages ? CONFIG.basePath + 'page/' + (page + 1) + '.html' : null;
+    const pageHtml = render(indexTpl, {
+      siteName: CONFIG.siteName,
+      siteDescription: CONFIG.siteDescription,
+      basePath: CONFIG.basePath,
+      posts: pagePosts,
+      currentPage: page,
+      totalPages,
+      prevPage,
+      nextPage,
+    });
+    const pageFull = render(layoutTpl, {
+      title: page === 1 ? 'Inicio' : `Pagina ${page}`,
+      description: CONFIG.siteDescription,
+      siteName: CONFIG.siteName,
+      basePath: CONFIG.basePath,
+      content: pageHtml,
+      canonicalUrl: page === 1 ? CONFIG.siteUrl : CONFIG.siteUrl + 'page/' + page + '.html',
+      ogTitle: CONFIG.siteName,
+      ogDescription: CONFIG.siteDescription,
+      ogImage: CONFIG.siteOgImage || CONFIG.siteUrl,
+      ogType: 'website',
+    });
+    if (page === 1) {
+      writeFile(path.join(DIST_DIR, 'index.html'), pageFull);
+    } else {
+      writeFile(path.join(DIST_DIR, 'page', `${page}.html`), pageFull);
+    }
+  }
+  console.log(`  Generated ${totalPages} index pages`);
 
   // Taxonomias
   const categoryTaxes = allTaxonomies.filter(t => t.type === 'category');
@@ -255,12 +285,18 @@ async function build() {
         publishedAt: p.publishedAt,
       })),
     });
+    const taxCanonical = CONFIG.siteUrl + (tax.type === 'category' ? 'categories/' : 'tags/') + tax.slug + '.html';
     const taxFull = render(layoutTpl, {
       title: tax.name,
       description: tax.description || `Posts en ${tax.name}`,
       siteName: CONFIG.siteName,
       basePath: CONFIG.basePath,
       content: taxHtml,
+      canonicalUrl: taxCanonical,
+      ogTitle: tax.name,
+      ogDescription: tax.description || `Posts en ${tax.name}`,
+      ogImage: CONFIG.siteOgImage || taxCanonical,
+      ogType: 'website',
     });
     const subdir = tax.type === 'category' ? 'categories' : 'tags';
     writeFile(path.join(DIST_DIR, subdir, `${tax.slug}.html`), taxFull);
@@ -274,6 +310,11 @@ async function build() {
     \u003c/div\u003e\u003c/section\u003e`;
   writeFile(path.join(DIST_DIR, 'categories', 'index.html'), render(layoutTpl, {
     title: 'Categorias', description: 'Todas las categorias', siteName: CONFIG.siteName, basePath: CONFIG.basePath, content: catsListHtml,
+    canonicalUrl: CONFIG.siteUrl + 'categories/',
+    ogTitle: 'Categorias',
+    ogDescription: 'Todas las categorias',
+    ogImage: CONFIG.siteOgImage || CONFIG.siteUrl,
+    ogType: 'website',
   }));
 
   const tagsListHtml = `
@@ -282,6 +323,11 @@ async function build() {
     \u003c/div\u003e\u003c/section\u003e`;
   writeFile(path.join(DIST_DIR, 'tags', 'index.html'), render(layoutTpl, {
     title: 'Tags', description: 'Todos los tags', siteName: CONFIG.siteName, basePath: CONFIG.basePath, content: tagsListHtml,
+    canonicalUrl: CONFIG.siteUrl + 'tags/',
+    ogTitle: 'Tags',
+    ogDescription: 'Todos los tags',
+    ogImage: CONFIG.siteOgImage || CONFIG.siteUrl,
+    ogType: 'website',
   }));
   console.log('  Generated taxonomy index pages');
 
