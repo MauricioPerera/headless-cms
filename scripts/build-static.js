@@ -545,6 +545,15 @@ async function build() {
   console.log('  Generated JSON API + search index');
 
   require('./build-search-index');
+  
+  // Copy Cloudflare Pages Functions worker to dist
+  const workerSrc = path.join(ROOT, 'functions', '_worker.js');
+  const workerDest = path.join(DIST_DIR, '_worker.js');
+  if (fs.existsSync(workerSrc)) {
+    fs.copyFileSync(workerSrc, workerDest);
+    console.log('  Copied functions/_worker.js to dist');
+  }
+
   console.log(`\nDone. Output: ${DIST_DIR}`);
 }
 
