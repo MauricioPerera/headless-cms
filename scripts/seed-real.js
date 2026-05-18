@@ -17,6 +17,8 @@ async function seed() {
     email: 'mauricio@example.com',
     password: 'admin123',
     displayName: 'Mauricio Perera',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+    bio: 'Desarrollador full-stack con 12 anos de experiencia. Ex-usuario de WordPress convertido a defensor de las bases de datos documentales.',
     role: 'admin'
   });
   console.log('Autor:', mauricio.displayName);
@@ -26,6 +28,8 @@ async function seed() {
     email: 'ana@example.com',
     password: 'editor123',
     displayName: 'Ana Rodriguez',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
+    bio: 'Frontend engineer especializada en CSS moderno y accesibilidad. Creyente de que menos JavaScript es mas.',
     role: 'editor'
   });
   console.log('Autor:', ana.displayName);

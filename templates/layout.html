@@ -17,6 +17,9 @@
   <meta name="twitter:description" content="{{ogDescription}}">
   <meta name="twitter:image" content="{{ogImage}}">
   <link rel="stylesheet" href="{{basePath}}assets/style.css">
+  {{#schemaJson}}
+  <script type="application/ld+json">{{schemaJson}}</script>
+  {{/schemaJson}}
   <link rel="alternate" type="application/rss+xml" title="{{siteName}}" href="{{basePath}}feed.xml">
   <script>
     (function() {
@@ -47,6 +50,20 @@
     </div>
   </header>
 
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <ol itemscope itemtype="https://schema.org/BreadcrumbList">
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <a itemprop="item" href="{{basePath}}"><span itemprop="name">Inicio</span></a>
+        <meta itemprop="position" content="1">
+      </li>
+      {{#breadcrumb}}
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <a itemprop="item" href="{{url}}"><span itemprop="name">{{name}}</span></a>
+        <meta itemprop="position" content="{{position}}">
+      </li>
+      {{/breadcrumb}}
+    </ol>
+  </nav>
   <main class="container">
     {{content}}
   </main>

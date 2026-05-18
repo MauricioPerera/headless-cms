@@ -37,6 +37,65 @@ function rssDate(iso) {
 
 function buildDate() { return new Date().toUTCString(); }
 
+function buildSchemaJson(type, data) {
+  const base = {
+    '@context': 'https://schema.org',
+    '@type': type,
+  };
+  if (type === 'BlogPosting') {
+    return JSON.stringify({
+      ...base,
+      headline: data.title,
+      description: data.description,
+      url: data.url,
+      image: data.image,
+      datePublished: data.datePublished,
+      dateModified: data.dateModified || data.datePublished,
+      author: data.author ? {
+        '@type': 'Person',
+        name: data.author.displayName,
+        image: data.author.avatar,
+        description: data.author.bio,
+      } : undefined,
+      publisher: {
+        '@type': 'Organization',
+        name: data.siteName,
+        logo: { '@type': 'ImageObject', url: data.siteUrl + 'assets/favicon.png' },
+      },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': data.url },
+    });
+  }
+  if (type === 'WebSite') {
+    return JSON.stringify({
+      ...base,
+      name: data.siteName,
+      description: data.description,
+      url: data.siteUrl,
+      publisher: {
+        '@type': 'Organization',
+        name: data.siteName,
+      },
+    });
+  }
+  if (type === 'CollectionPage') {
+    return JSON.stringify({
+      ...base,
+      name: data.title,
+      description: data.description,
+      url: data.url,
+    });
+  }
+  return '';
+}
+
+function buildBreadcrumbs(items) {
+  return items.map((item, i) => ({
+    name: item.name,
+    url: item.url,
+    position: (i + 2).toString(),
+  }));
+}
+
 function render(template, data) {
   let result = template;
   result = result.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, key, inner) => {
@@ -196,7 +255,7 @@ async function build() {
       excerpt: escapeHtml(post.excerpt || ''),
       readTime: (post.meta && post.meta.readTime) ? post.meta.readTime : 5,
       featuredImage: post.featuredImage ? (typeof post.featuredImage === "string" ? { src: post.featuredImage, alt: post.title } : { src: post.featuredImage.src, alt: post.featuredImage.alt || post.title, caption: post.featuredImage.caption || "" }) : null,
-      author: author ? { displayName: author.displayName || author.username } : null,
+      author: author ? { displayName: author.displayName || author.username, avatar: author.avatar, bio: author.bio || '' } : null,
       categories: categories.map(t => ({ ...t, basePath: CONFIG.basePath })),
       tags: tags.map(t => ({ ...t, basePath: CONFIG.basePath })),
     };
@@ -215,6 +274,18 @@ async function build() {
     const postHtml = render(postTpl, { ...post, basePath: CONFIG.basePath });
     const canonicalUrl = CONFIG.siteUrl + 'posts/' + post.slug + '.html';
     const ogImage = post.featuredImage ? post.featuredImage.src : CONFIG.siteOgImage;
+    const schemaJson = buildSchemaJson('BlogPosting', {
+      title: post.title,
+      description: post.excerpt,
+      url: canonicalUrl,
+      image: ogImage || canonicalUrl,
+      datePublished: post.publishedAt || post.createdAt,
+      dateModified: post.updatedAt || post.createdAt,
+      author: post.author ? { displayName: post.author.displayName, avatar: post.author.avatar, bio: post.author.bio } : null,
+      siteName: CONFIG.siteName,
+      siteUrl: CONFIG.siteUrl,
+    });
+    const breadcrumb = buildBreadcrumbs([{ name: post.title, url: canonicalUrl }]);
     const fullHtml = render(layoutTpl, {
       title: post.title,
       description: post.excerpt,
@@ -227,6 +298,8 @@ async function build() {
       ogDescription: post.excerpt,
       ogImage: ogImage || canonicalUrl,
       ogType: 'article',
+      schemaJson,
+      breadcrumb,
     });
     writeFile(path.join(DIST_DIR, 'posts', `${post.slug}.html`), fullHtml);
   }
@@ -250,6 +323,11 @@ async function build() {
       prevPage,
       nextPage,
     });
+    const schemaJson = buildSchemaJson('WebSite', {
+      siteName: CONFIG.siteName,
+      description: CONFIG.siteDescription,
+      siteUrl: CONFIG.siteUrl,
+    });
     const pageFull = render(layoutTpl, {
       title: page === 1 ? 'Inicio' : `Pagina ${page}`,
       description: CONFIG.siteDescription,
@@ -262,6 +340,8 @@ async function build() {
       ogDescription: CONFIG.siteDescription,
       ogImage: CONFIG.siteOgImage || CONFIG.siteUrl,
       ogType: 'website',
+      schemaJson,
+      breadcrumb: [],
     });
     if (page === 1) {
       writeFile(path.join(DIST_DIR, 'index.html'), pageFull);
@@ -291,6 +371,12 @@ async function build() {
       })),
     });
     const taxCanonical = CONFIG.siteUrl + (tax.type === 'category' ? 'categories/' : 'tags/') + tax.slug + '.html';
+    const schemaJson = buildSchemaJson('CollectionPage', {
+      title: tax.name,
+      description: tax.description || `Posts en ${tax.name}`,
+      url: taxCanonical,
+    });
+    const breadcrumb = buildBreadcrumbs([{ name: tax.name, url: taxCanonical }]);
     const taxFull = render(layoutTpl, {
       title: tax.name,
       description: tax.description || `Posts en ${tax.name}`,
@@ -303,6 +389,8 @@ async function build() {
       ogDescription: tax.description || `Posts en ${tax.name}`,
       ogImage: CONFIG.siteOgImage || taxCanonical,
       ogType: 'website',
+      schemaJson,
+      breadcrumb,
     });
     const subdir = tax.type === 'category' ? 'categories' : 'tags';
     writeFile(path.join(DIST_DIR, subdir, `${tax.slug}.html`), taxFull);
@@ -322,6 +410,8 @@ async function build() {
     ogDescription: 'Todas las categorias',
     ogImage: CONFIG.siteOgImage || CONFIG.siteUrl,
     ogType: 'website',
+    schemaJson: '',
+    breadcrumb: [],
   }));
 
   const tagsListHtml = `
@@ -336,12 +426,20 @@ async function build() {
     ogDescription: 'Todos los tags',
     ogImage: CONFIG.siteOgImage || CONFIG.siteUrl,
     ogType: 'website',
+    schemaJson: '',
+    breadcrumb: [],
   }));
   console.log('  Generated taxonomy index pages');
   // Pages
   for (const page of allPages) {
     const pageHtml = render(pageTpl, { ...page, basePath: CONFIG.basePath, content: renderContent(page.content) });
     const pageCanonical = CONFIG.siteUrl + page.slug + '.html';
+    const schemaJson = buildSchemaJson('WebPage', {
+      title: page.title,
+      description: page.excerpt || page.title,
+      url: pageCanonical,
+    });
+    const breadcrumb = buildBreadcrumbs([{ name: page.title, url: pageCanonical }]);
     const fullHtml = render(layoutTpl, {
       title: page.title,
       description: page.excerpt || page.title,
@@ -354,6 +452,8 @@ async function build() {
       ogDescription: page.excerpt || page.title,
       ogImage: CONFIG.siteOgImage || pageCanonical,
       ogType: 'website',
+      schemaJson,
+      breadcrumb,
     });
     writeFile(path.join(DIST_DIR, `${page.slug}.html`), fullHtml);
   }

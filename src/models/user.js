@@ -31,6 +31,8 @@ globalHooks.on('user.beforeInsert', async (ctx) => {
   doc.username = doc.username.trim().toLowerCase();
   doc.email = doc.email.trim().toLowerCase();
   doc.displayName = doc.displayName || doc.username;
+  doc.avatar = doc.avatar || null;
+  doc.bio = doc.bio || '';
   doc.role = doc.role || 'subscriber';
   const allowedRoles = ['admin', 'editor', 'author', 'subscriber'];
   if (!allowedRoles.includes(doc.role)) throw new Error('invalid role');
