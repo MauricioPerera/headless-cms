@@ -75,15 +75,15 @@ function logout() { token = null; user = null; localStorage.removeItem('cms_toke
 /* Login */
 function renderLogin(msg='') {
   const app = $('#app');
-  app.innerHTML = \`
+  app.innerHTML = `
     <div class="login-box">
       <h2>Admin CMS</h2>
-      \${msg ? \`<div class="msg msg-err">\${msg}</div>\` : ''}
+      ${msg ? `<div class="msg msg-err">${msg}</div>` : ''}
       <div class="form-group"><label>Usuario</label><input type="text" id="u"></div>
       <div class="form-group"><label>Contrasena</label><input type="password" id="p"></div>
       <button class="btn btn-primary" id="btn" style="width:100%">Entrar</button>
     </div>
-  \`;
+  `;
   $('#btn').onclick = async () => {
     const u = $('#u').value, p = $('#p').value;
     try {
@@ -101,11 +101,11 @@ function renderLogin(msg='') {
 /* Dashboard */
 async function renderDashboard() {
   const app = $('#app');
-  app.innerHTML = \`<header><div class="container"><h1>Headless CMS</h1><div><span style="color:var(--muted);margin-right:.75rem">\${user.displayName}</span><button class="btn btn-sm" id="new">+ Nuevo post</button><button class="btn btn-sm" id="out">Salir</button></div></div></header>
+  app.innerHTML = `<header><div class="container"><h1>Headless CMS</h1><div><span style="color:var(--muted);margin-right:.75rem">${user.displayName}</span><button class="btn btn-sm" id="new">+ Nuevo post</button><button class="btn btn-sm" id="out">Salir</button></div></div></header>
     <div class="container" style="padding-top:1.5rem">
       <div class="tabs"><div class="tab active" data-tab="posts">Posts</div><div class="tab" data-tab="pages">Paginas</div></div>
       <div id="list" class="post-list"></div>
-    </div>\`;
+    </div>`;
   $('#new').onclick = () => {
     const activeTab = $('.tab.active')?.dataset?.tab;
     if (activeTab === 'pages') renderPageEditor();
@@ -126,18 +126,18 @@ async function renderPostList() {
   try {
     const posts = await api('/posts?limit=50&sort=createdAt:desc');
     if (!posts.length) { list.innerHTML = '<p style="color:var(--muted)">No hay posts.</p>'; return; }
-    list.innerHTML = posts.map(p => \`
-      <div class="post-item" data-id="\${p._id}">
+    list.innerHTML = posts.map(p => `
+      <div class="post-item" data-id="${p._id}">
         <div>
-          <div class="title">\${escapeHtml(p.title)} <span class="badge \${p.status==='published'?'':'badge-draft'}">\${p.status}</span></div>
-          <div class="meta">\${fmtDate(p.createdAt)} \${p.meta?.readTime ? '· '+p.meta.readTime+' min' : ''}</div>
+          <div class="title">${escapeHtml(p.title)} <span class="badge ${p.status==='published'?'':'badge-draft'}">${p.status}</span></div>
+          <div class="meta">${fmtDate(p.createdAt)} ${p.meta?.readTime ? '· '+p.meta.readTime+' min' : ''}</div>
         </div>
         <div style="display:flex;gap:.5rem">
-          <button class="btn btn-sm" data-edit="\${p._id}">Editar</button>
-          <button class="btn btn-sm" data-del="\${p._id}">Eliminar</button>
+          <button class="btn btn-sm" data-edit="${p._id}">Editar</button>
+          <button class="btn btn-sm" data-del="${p._id}">Eliminar</button>
         </div>
       </div>
-    \`).join('');
+    `).join('');
     $$('[data-edit]').forEach(b => b.onclick = () => renderEditor(b.dataset.edit));
     $$('[data-del]').forEach(b => b.onclick = async () => {
       if (!confirm('Eliminar este post?')) return;
@@ -152,18 +152,18 @@ async function renderPageList() {
   try {
     const pages = await api('/pages?limit=50&sort=createdAt:desc');
     if (!pages.length) { list.innerHTML = '<p style="color:var(--muted)">No hay paginas.</p>'; return; }
-    list.innerHTML = pages.map(p => \`
-      <div class="post-item" data-id="\${p._id}">
+    list.innerHTML = pages.map(p => `
+      <div class="post-item" data-id="${p._id}">
         <div>
-          <div class="title">\${escapeHtml(p.title)}</div>
-          <div class="meta">\${fmtDate(p.createdAt)} · /\${p.slug}.html</div>
+          <div class="title">${escapeHtml(p.title)}</div>
+          <div class="meta">${fmtDate(p.createdAt)} · /${p.slug}.html</div>
         </div>
         <div style="display:flex;gap:.5rem">
-          <button class="btn btn-sm" data-edit-page="\${p._id}">Editar</button>
-          <button class="btn btn-sm" data-del-page="\${p._id}">Eliminar</button>
+          <button class="btn btn-sm" data-edit-page="${p._id}">Editar</button>
+          <button class="btn btn-sm" data-del-page="${p._id}">Eliminar</button>
         </div>
       </div>
-    \`).join('');
+    `).join('');
     $$('[data-edit-page]').forEach(b => b.onclick = () => renderPageEditor(b.dataset.editPage));
     $$('[data-del-page]').forEach(b => b.onclick = async () => {
       if (!confirm('Eliminar esta pagina?')) return;
@@ -176,7 +176,7 @@ async function renderPageList() {
 async function renderEditor(id) {
   currentPost = null; blocks = [];
   const app = $('#app');
-  app.innerHTML = \`<header><div class="container"><h1>\${id ? 'Editar' : 'Nuevo'} post</h1><div><button class="btn btn-sm" id="back">← Volver</button><button class="btn btn-primary btn-sm" id="save">Guardar</button></div></div></header>
+  app.innerHTML = `<header><div class="container"><h1>${id ? 'Editar' : 'Nuevo'} post</h1><div><button class="btn btn-sm" id="back">← Volver</button><button class="btn btn-primary btn-sm" id="save">Guardar</button></div></div></header>
     <div class="container" style="padding-top:1.5rem">
       <div class="grid-2">
         <div class="form-group"><label>Titulo</label><input type="text" id="title"></div>
@@ -208,7 +208,7 @@ async function renderEditor(id) {
         </div>
       </div>
       <div id="msg"></div>
-    </div>\`;
+    </div>`;
 
   // Taxonomies
   try { taxonomies = await api('/taxonomies?limit=100'); } catch(e){ taxonomies=[]; }
@@ -216,8 +216,8 @@ async function renderEditor(id) {
   const cats = taxonomies.filter(t=>t.type==='category');
   const tags = taxonomies.filter(t=>t.type==='tag');
   taxSelect.innerHTML = [
-    ...cats.map(t => \`<label><input type="checkbox" value="\${t._id}" data-type="category"> \${escapeHtml(t.name)}</label>\`),
-    ...tags.map(t => \`<label><input type="checkbox" value="\${t._id}" data-type="tag"> \${escapeHtml(t.name)}</label>\`)
+    ...cats.map(t => `<label><input type="checkbox" value="${t._id}" data-type="category"> ${escapeHtml(t.name)}</label>`),
+    ...tags.map(t => `<label><input type="checkbox" value="${t._id}" data-type="tag"> ${escapeHtml(t.name)}</label>`)
   ].join('');
   taxSelect.querySelectorAll('input').forEach(ch => {
     ch.onchange = () => ch.parentElement.classList.toggle('checked', ch.checked);
@@ -259,39 +259,39 @@ async function renderEditor(id) {
 function renderBlocks() {
   const editor = $('#editor');
   if (!blocks.length) { editor.innerHTML = '<p style="color:var(--muted)">Sin bloques. Agrega contenido arriba.</p>'; return; }
-  editor.innerHTML = blocks.map((b,i) => \`
-    <div class="block" data-i="\${i}">
+  editor.innerHTML = blocks.map((b,i) => `
+    <div class="block" data-i="${i}">
       <div class="block-header">
-        <select onchange="changeType(\${i}, this.value)">
-          <option value="paragraph" \${b.type==='paragraph'?'selected':''}>Parrafo</option>
-          <option value="heading" \${b.type==='heading'?'selected':''}>H2</option>
-          <option value="heading3" \${b.type==='heading3'?'selected':''}>H3</option>
-          <option value="image" \${b.type==='image'?'selected':''}>Imagen</option>
-          <option value="code" \${b.type==='code'?'selected':''}>Code</option>
-          <option value="quote" \${b.type==='quote'?'selected':''}>Cita</option>
-          <option value="list" \${b.type==='list'?'selected':''}>Lista</option>
-          <option value="divider" \${b.type==='divider'?'selected':''}>Divisor</option>
+        <select onchange="changeType(${i}, this.value)">
+          <option value="paragraph" ${b.type==='paragraph'?'selected':''}>Parrafo</option>
+          <option value="heading" ${b.type==='heading'?'selected':''}>H2</option>
+          <option value="heading3" ${b.type==='heading3'?'selected':''}>H3</option>
+          <option value="image" ${b.type==='image'?'selected':''}>Imagen</option>
+          <option value="code" ${b.type==='code'?'selected':''}>Code</option>
+          <option value="quote" ${b.type==='quote'?'selected':''}>Cita</option>
+          <option value="list" ${b.type==='list'?'selected':''}>Lista</option>
+          <option value="divider" ${b.type==='divider'?'selected':''}>Divisor</option>
         </select>
         <div class="block-actions">
-          <button class="btn btn-sm" onclick="moveBlock(\${i},-1)">↑</button>
-          <button class="btn btn-sm" onclick="moveBlock(\${i},1)">↓</button>
-          <button class="btn btn-sm" onclick="removeBlock(\${i})">×</button>
+          <button class="btn btn-sm" onclick="moveBlock(${i},-1)">↑</button>
+          <button class="btn btn-sm" onclick="moveBlock(${i},1)">↓</button>
+          <button class="btn btn-sm" onclick="removeBlock(${i})">×</button>
         </div>
       </div>
-      \${blockFields(b,i)}
+      ${blockFields(b,i)}
     </div>
-  \`).join('');
+  `).join('');
 }
 
 function blockFields(b,i) {
   switch(b.type) {
-    case 'paragraph': return \`<textarea oninput="blocks[\${i}].text=this.value" placeholder="Texto...">\${escapeHtml(b.text||'')}</textarea>\`;
-    case 'heading': return \`<input type="text" oninput="blocks[\${i}].text=this.value" placeholder="Titulo..." value="\${escapeHtml(b.text||'')}">\`;
-    case 'heading3': return \`<input type="text" oninput="blocks[\${i}].text=this.value" placeholder="Subtitulo..." value="\${escapeHtml(b.text||'')}">\`;
-    case 'image': return \`<input type="url" oninput="blocks[\${i}].src=this.value" placeholder="URL imagen..." value="\${escapeHtml(b.src||'')}"><input type="text" oninput="blocks[\${i}].alt=this.value" placeholder="Alt text..." value="\${escapeHtml(b.alt||'')}">\`;
-    case 'code': return \`<textarea oninput="blocks[\${i}].text=this.value" placeholder="Codigo...">\${escapeHtml(b.text||'')}</textarea>\`;
-    case 'quote': return \`<textarea oninput="blocks[\${i}].text=this.value" placeholder="Cita...">\${escapeHtml(b.text||'')}</textarea>\`;
-    case 'list': return \`<label style="font-size:.8rem"><input type="checkbox" \${b.ordered?'checked':''} onchange="blocks[\${i}].ordered=this.checked"> Ordenada</label><textarea oninput="blocks[\${i}].items=this.value.split('\\n')" placeholder="Items (uno por linea)...">\${escapeHtml((b.items||[]).join('\\n'))}</textarea>\`;
+    case 'paragraph': return `<textarea oninput="blocks[${i}].text=this.value" placeholder="Texto...">${escapeHtml(b.text||'')}</textarea>`;
+    case 'heading': return `<input type="text" oninput="blocks[${i}].text=this.value" placeholder="Titulo..." value="${escapeHtml(b.text||'')}">`;
+    case 'heading3': return `<input type="text" oninput="blocks[${i}].text=this.value" placeholder="Subtitulo..." value="${escapeHtml(b.text||'')}">`;
+    case 'image': return `<input type="url" oninput="blocks[${i}].src=this.value" placeholder="URL imagen..." value="${escapeHtml(b.src||'')}"><input type="text" oninput="blocks[${i}].alt=this.value" placeholder="Alt text..." value="${escapeHtml(b.alt||'')}">`;
+    case 'code': return `<textarea oninput="blocks[${i}].text=this.value" placeholder="Codigo...">${escapeHtml(b.text||'')}</textarea>`;
+    case 'quote': return `<textarea oninput="blocks[${i}].text=this.value" placeholder="Cita...">${escapeHtml(b.text||'')}</textarea>`;
+    case 'list': return `<label style="font-size:.8rem"><input type="checkbox" ${b.ordered?'checked':''} onchange="blocks[${i}].ordered=this.checked"> Ordenada</label><textarea oninput="blocks[${i}].items=this.value.split('\\n')" placeholder="Items (uno por linea)...">${escapeHtml((b.items||[]).join('\\n'))}</textarea>`;
     case 'divider': return '<em style="color:var(--muted)">Divisor horizontal</em>';
     default: return '';
   }
@@ -321,14 +321,14 @@ async function uploadFile(file) {
     if (!r.ok) throw new Error('Error al subir');
     const d = await r.json();
     $('#featuredImage').value = d.url;
-    preview.innerHTML = \`<img class="image-preview" src="\${d.url}" alt="preview">\`;
+    preview.innerHTML = `<img class="image-preview" src="${d.url}" alt="preview">`;
   } catch(e) { preview.innerHTML = '<p class="msg msg-err">'+e.message+'</p>'; }
 }
 
 async function renderPageEditor(id) {
   currentPost = null; blocks = [];
   const app = $('#app');
-  app.innerHTML = \`<header><div class="container"><h1>\${id ? 'Editar' : 'Nueva'} pagina</h1><div><button class="btn btn-sm" id="back">← Volver</button><button class="btn btn-primary btn-sm" id="save">Guardar</button></div></div></header>
+  app.innerHTML = `<header><div class="container"><h1>${id ? 'Editar' : 'Nueva'} pagina</h1><div><button class="btn btn-sm" id="back">← Volver</button><button class="btn btn-primary btn-sm" id="save">Guardar</button></div></div></header>
     <div class="container" style="padding-top:1.5rem">
       <div class="grid-2">
         <div class="form-group"><label>Titulo</label><input type="text" id="title"></div>
@@ -349,7 +349,7 @@ async function renderPageEditor(id) {
         </div>
       </div>
       <div id="msg"></div>
-    </div>\`;
+    </div>`;
   if (id) {
     try {
       const p = await api('/pages/' + id);
