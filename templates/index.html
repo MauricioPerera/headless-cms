@@ -5,38 +5,38 @@
 
 <section class="post-list">
   {{#posts}}
-  {{#featuredImage}}
-  <div class="post-card-image">
-    <img src="{{src}}" alt="{{alt}}" loading="lazy">
-  </div>
-{{/featuredImage}}
-
   <article class="post-card">
-    <h2><a href="{{basePath}}posts/{{slug}}.html">{{title}}</a></h2>
-    <p class="excerpt">{{excerpt}}</p>
-    <div class="post-meta">
-      <time datetime="{{publishedAt}}">{{publishedDate}}</time>
-      <span class="read-time">{{readTime}} min</span>
+    {{#featuredImage}}
+    <div class="post-card-image">
+      <img src="{{src}}" alt="{{alt}}" loading="lazy">
     </div>
-    {{#categories}}
-    <div class="post-tags">
-      <a class="tag category" href="{{basePath}}categories/{{slug}}.html">{{name}}</a>
+    {{/featuredImage}}
+    <div class="post-card-body">
+      <h2><a href="{{basePath}}posts/{{slug}}.html">{{title}}</a></h2>
+      <p class="excerpt">{{excerpt}}</p>
+      <div class="post-meta">
+        <time datetime="{{publishedAt}}">{{publishedDate}}</time>
+        <span class="read-time">{{readTime}} min</span>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        {{#categories}}
+        <div class="post-tags">
+          <a class="tag category" href="{{basePath}}categories/{{slug}}.html">{{name}}</a>
+        </div>
+        {{/categories}}
+        {{#tags}}
+        <div class="post-tags">
+          <a class="tag" href="{{basePath}}tags/{{slug}}.html">{{name}}</a>
+        </div>
+        {{/tags}}
+      </div>
     </div>
-    {{/categories}}
-    {{#tags}}
-    <div class="post-tags">
-      <a class="tag" href="{{basePath}}tags/{{slug}}.html">{{name}}</a>
-    </div>
-    {{/tags}}
   </article>
   {{/posts}}
 </section>
-
-
 
 <nav class="pagination" aria-label="Paginacion">
   {{#prevPage}}<a class="btn" href="{{prevPage}}">← Anterior</a>{{/prevPage}}
   <span>Pagina {{currentPage}} de {{totalPages}}</span>
   {{#nextPage}}<a class="btn" href="{{nextPage}}">Siguiente →</a>{{/nextPage}}
 </nav>
-
