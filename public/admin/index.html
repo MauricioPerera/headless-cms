@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Headless CMS</title>
+<style>
+  :root { --bg:#fff; --text:#1a1a1a; --muted:#666; --accent:#2563eb; --accenth:#1d4ed8; --surface:#f8f9fa; --border:#e5e7eb; --radius:6px; --max:900px; --gap:1.5rem; }
+  html.theme-dark { --bg:#0f0f11; --text:#e6e6e8; --muted:#9ca3af; --accent:#60a5fa; --accenth:#93c5fd; --surface:#18181b; --border:#27272a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+  .container { max-width:var(--max); margin:0 auto; padding:0 var(--gap); }
+  header { border-bottom:1px solid var(--border); padding:1rem 0; position:sticky; top:0; background:var(--bg); z-index:10; }
+  header .container { display:flex; align-items:center; justify-content:space-between; }
+  h1 { font-size:1.25rem; margin:0; }
+  .btn { display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .9rem; border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:var(--radius); font-size:.9rem; cursor:pointer; text-decoration:none; }
+  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn-primary:hover { background:var(--accenth); }
+  .btn-sm { padding:.3rem .6rem; font-size:.8rem; }
+  .form-group { margin-bottom:1rem; }
+  label { display:block; font-size:.85rem; font-weight:500; margin-bottom:.35rem; color:var(--muted); }
+  input[type="text"], input[type="url"], textarea, select { width:100%; padding:.5rem .6rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg); color:var(--text); font-size:.95rem; }
+  textarea { min-height:80px; resize:vertical; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  @media(max-width:600px){ .grid-2 { grid-template-columns:1fr; } }
+  .login-box { max-width:360px; margin:10vh auto; padding:2rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); }
+  .login-box h2 { margin-top:0; }
+  .msg { padding:.6rem .8rem; border-radius:var(--radius); font-size:.85rem; margin-bottom:1rem; }
+  .msg-ok { background:#dcfce7; color:#166534; }
+  .msg-err { background:#fee2e2; color:#991b1b; }
+  .post-list { display:grid; gap:.75rem; }
+  .post-item { display:flex; align-items:center; justify-content:space-between; padding:.75rem; border:1px solid var(--border); border-radius:var(--radius); }
+  .post-item .title { font-weight:500; }
+  .post-item .meta { font-size:.8rem; color:var(--muted); }
+  .badge { display:inline-block; padding:.15rem .45rem; border-radius:999px; font-size:.75rem; font-weight:500; background:rgba(37,99,235,.1); color:var(--accent); }
+  .badge-draft { background:rgba(100,100,100,.1); color:var(--muted); }
+  .hidden { display:none !important; }
+  .block-editor { border:1px solid var(--border); border-radius:var(--radius); padding:1rem; background:var(--surface); }
+  .block { padding:.6rem; border:1px dashed var(--border); border-radius:var(--radius); margin-bottom:.5rem; background:var(--bg); }
+  .block-header { display:flex; gap:.5rem; margin-bottom:.4rem; }
+  .block-header select { width:auto; }
+  .block-actions { margin-left:auto; display:flex; gap:.3rem; }
+  .dropzone { border:2px dashed var(--border); border-radius:var(--radius); padding:1.5rem; text-align:center; color:var(--muted); cursor:pointer; transition:border-color .15s; }
+  .dropzone:hover, .dropzone.dragover { border-color:var(--accent); }
+  .image-preview { max-width:100%; max-height:200px; border-radius:var(--radius); margin-top:.5rem; }
+  .tag-select { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.4rem; }
+  .tag-select label { display:flex; align-items:center; gap:.25rem; font-size:.85rem; font-weight:400; color:var(--text); cursor:pointer; padding:.25rem .5rem; border:1px solid var(--border); border-radius:var(--radius); }
+  .tag-select input { accent-color:var(--accent); }
+  .tag-select label.checked { border-color:var(--accent); background:rgba(37,99,235,.08); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const API = location.origin;
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => Array.from(el.querySelectorAll(s));
+
+let token = localStorage.getItem('cms_token');
+let user = JSON.parse(localStorage.getItem('cms_user') || 'null');
+
+async function api(path, opts={}) {
+  const url = API + '/api' + path;
+  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token, ...opts.headers }, ...opts });
+  if (res.status === 401) { logout(); throw new Error('Sesion expirada'); }
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || 'Error ' + res.status); }
+  return res.json().catch(() => null);
+}
+
+function logout() { token = null; user = null; localStorage.removeItem('cms_token'); localStorage.removeItem('cms_user'); renderLogin(); }
+
+/* Login */
+function renderLogin(msg='') {
+  const app = $('#app');
+  app.innerHTML = \`
+    <div class="login-box">
+      <h2>Admin CMS</h2>
+      \${msg ? \`<div class="msg msg-err">\${msg}</div>\` : ''}
+      <div class="form-group"><label>Usuario</label><input type="text" id="u"></div>
+      <div class="form-group"><label>Contrasena</label><input type="password" id="p"></div>
+      <button class="btn btn-primary" id="btn" style="width:100%">Entrar</button>
+    </div>
+  \`;
+  $('#btn').onclick = async () => {
+    const u = $('#u').value, p = $('#p').value;
+    try {
+      const r = await fetch(API + '/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u, password:p}) });
+      if (!r.ok) throw new Error('Credenciales invalidas');
+      const d = await r.json();
+      token = d.token; user = d.user;
+      localStorage.setItem('cms_token', token);
+      localStorage.setItem('cms_user', JSON.stringify(user));
+      renderDashboard();
+    } catch(e) { renderLogin(e.message); }
+  };
+}
+
+/* Dashboard */
+async function renderDashboard() {
+  const app = $('#app');
+  app.innerHTML = \`<header><div class="container"><h1>Headless CMS</h1><div><span style="color:var(--muted);margin-right:.75rem">\${user.displayName}</span><button class="btn btn-sm" id="new">+ Nuevo post</button><button class="btn btn-sm" id="out">Salir</button></div></div></header>
+    <div class="container" style="padding-top:1.5rem"><div id="list" class="post-list"></div></div>\`;
+  $('#new').onclick = () => renderEditor();
+  $('#out').onclick = logout;
+  try {
+    const posts = await api('/posts?limit=50&sort=createdAt:desc');
+    const list = $('#list');
+    if (!posts.length) { list.innerHTML = '<p style="color:var(--muted)">No hay posts.</p>'; return; }
+    list.innerHTML = posts.map(p => \`
+      <div class="post-item" data-id="\${p._id}">
+        <div>
+          <div class="title">\${escapeHtml(p.title)} <span class="badge \${p.status==='published'?'':'badge-draft'}">\${p.status}</span></div>
+          <div class="meta">\${fmtDate(p.createdAt)} \${p.meta?.readTime ? '· '+p.meta.readTime+' min' : ''}</div>
+        </div>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn btn-sm" data-edit="\${p._id}">Editar</button>
+          <button class="btn btn-sm" data-del="\${p._id}">Eliminar</button>
+        </div>
+      </div>
+    \`).join('');
+    $$('[data-edit]').forEach(b => b.onclick = () => renderEditor(b.dataset.edit));
+    $$('[data-del]').forEach(b => b.onclick = async () => {
+      if (!confirm('Eliminar este post?')) return;
+      await api('/posts/' + b.dataset.del, { method:'DELETE' });
+      renderDashboard();
+    });
+  } catch(e) { list.innerHTML = '<p class="msg msg-err">' + e.message + '</p>'; }
+}
+
+/* Editor */
+let currentPost = null;
+let blocks = [];
+let taxonomies = [];
+
+async function renderEditor(id) {
+  currentPost = null; blocks = [];
+  const app = $('#app');
+  app.innerHTML = \`<header><div class="container"><h1>\${id ? 'Editar' : 'Nuevo'} post</h1><div><button class="btn btn-sm" id="back">← Volver</button><button class="btn btn-primary btn-sm" id="save">Guardar</button></div></div></header>
+    <div class="container" style="padding-top:1.5rem">
+      <div class="grid-2">
+        <div class="form-group"><label>Titulo</label><input type="text" id="title"></div>
+        <div class="form-group"><label>Slug (opcional)</label><input type="text" id="slug" placeholder="auto"></div>
+      </div>
+      <div class="form-group"><label>Extracto</label><textarea id="excerpt"></textarea></div>
+      <div class="grid-2">
+        <div class="form-group"><label>Estado</label><select id="status"><option value="draft">Borrador</option><option value="published">Publicado</option></select></div>
+        <div class="form-group"><label>Tiempo de lectura</label><input type="text" id="readTime" placeholder="5"></div>
+      </div>
+      <div class="form-group"><label>Imagen destacada (URL)</label><input type="url" id="featuredImage" placeholder="https://..."></div>
+      <div class="form-group"><label>Subir imagen</label>
+        <div class="dropzone" id="dropzone">Arrastra una imagen aqui o haz click para seleccionar</div>
+        <input type="file" id="fileInput" accept="image/*" style="display:none">
+        <div id="uploadPreview"></div>
+      </div>
+      <div class="form-group" id="taxWrap"><label>Categorias y tags</label><div class="tag-select" id="taxSelect"></div></div>
+      <div class="form-group"><label>Contenido</label>
+        <div class="block-editor" id="editor"></div>
+        <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn-sm" data-add="paragraph">+ Parrafo</button>
+          <button class="btn btn-sm" data-add="heading">+ H2</button>
+          <button class="btn btn-sm" data-add="heading3">+ H3</button>
+          <button class="btn btn-sm" data-add="image">+ Imagen</button>
+          <button class="btn btn-sm" data-add="code">+ Code</button>
+          <button class="btn btn-sm" data-add="quote">+ Cita</button>
+          <button class="btn btn-sm" data-add="list">+ Lista</button>
+          <button class="btn btn-sm" data-add="divider">+ Divisor</button>
+        </div>
+      </div>
+      <div id="msg"></div>
+    </div>\`;
+
+  // Taxonomies
+  try { taxonomies = await api('/taxonomies?limit=100'); } catch(e){ taxonomies=[]; }
+  const taxSelect = $('#taxSelect');
+  const cats = taxonomies.filter(t=>t.type==='category');
+  const tags = taxonomies.filter(t=>t.type==='tag');
+  taxSelect.innerHTML = [
+    ...cats.map(t => \`<label><input type="checkbox" value="\${t._id}" data-type="category"> \${escapeHtml(t.name)}</label>\`),
+    ...tags.map(t => \`<label><input type="checkbox" value="\${t._id}" data-type="tag"> \${escapeHtml(t.name)}</label>\`)
+  ].join('');
+  taxSelect.querySelectorAll('input').forEach(ch => {
+    ch.onchange = () => ch.parentElement.classList.toggle('checked', ch.checked);
+  });
+
+  // Load post
+  if (id) {
+    try {
+      const p = await api('/posts/' + id + '?withAuthor=true&withTaxonomies=true');
+      currentPost = p;
+      $('#title').value = p.title || '';
+      $('#slug').value = p.slug || '';
+      $('#excerpt').value = p.excerpt || '';
+      $('#status').value = p.status || 'draft';
+      $('#readTime').value = (p.meta && p.meta.readTime) ? p.meta.readTime : '';
+      $('#featuredImage').value = (typeof p.featuredImage === 'string' ? p.featuredImage : (p.featuredImage?.src || ''));
+      const tids = p.taxonomyIds || [];
+      taxSelect.querySelectorAll('input').forEach(ch => { ch.checked = tids.includes(ch.value); ch.parentElement.classList.toggle('checked', ch.checked); });
+      try { blocks = typeof p.content === 'string' ? JSON.parse(p.content) : (p.content || []); } catch(e){ blocks=[]; }
+    } catch(e){ $('#msg').innerHTML = '<div class="msg msg-err">'+e.message+'</div>'; }
+  }
+  renderBlocks();
+
+  // Events
+  $('#back').onclick = renderDashboard;
+  $('#save').onclick = savePost;
+  $$('[data-add]').forEach(b => b.onclick = () => addBlock(b.dataset.add));
+
+  // Upload
+  const dropzone = $('#dropzone');
+  const fileInput = $('#fileInput');
+  dropzone.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) uploadFile(fileInput.files[0]); };
+  dropzone.ondragover = e => { e.preventDefault(); dropzone.classList.add('dragover'); };
+  dropzone.ondragleave = () => dropzone.classList.remove('dragover');
+  dropzone.ondrop = e => { e.preventDefault(); dropzone.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) uploadFile(f); };
+}
+
+function renderBlocks() {
+  const editor = $('#editor');
+  if (!blocks.length) { editor.innerHTML = '<p style="color:var(--muted)">Sin bloques. Agrega contenido arriba.</p>'; return; }
+  editor.innerHTML = blocks.map((b,i) => \`
+    <div class="block" data-i="\${i}">
+      <div class="block-header">
+        <select onchange="changeType(\${i}, this.value)">
+          <option value="paragraph" \${b.type==='paragraph'?'selected':''}>Parrafo</option>
+          <option value="heading" \${b.type==='heading'?'selected':''}>H2</option>
+          <option value="heading3" \${b.type==='heading3'?'selected':''}>H3</option>
+          <option value="image" \${b.type==='image'?'selected':''}>Imagen</option>
+          <option value="code" \${b.type==='code'?'selected':''}>Code</option>
+          <option value="quote" \${b.type==='quote'?'selected':''}>Cita</option>
+          <option value="list" \${b.type==='list'?'selected':''}>Lista</option>
+          <option value="divider" \${b.type==='divider'?'selected':''}>Divisor</option>
+        </select>
+        <div class="block-actions">
+          <button class="btn btn-sm" onclick="moveBlock(\${i},-1)">↑</button>
+          <button class="btn btn-sm" onclick="moveBlock(\${i},1)">↓</button>
+          <button class="btn btn-sm" onclick="removeBlock(\${i})">×</button>
+        </div>
+      </div>
+      \${blockFields(b,i)}
+    </div>
+  \`).join('');
+}
+
+function blockFields(b,i) {
+  switch(b.type) {
+    case 'paragraph': return \`<textarea oninput="blocks[\${i}].text=this.value" placeholder="Texto...">\${escapeHtml(b.text||'')}</textarea>\`;
+    case 'heading': return \`<input type="text" oninput="blocks[\${i}].text=this.value" placeholder="Titulo..." value="\${escapeHtml(b.text||'')}">\`;
+    case 'heading3': return \`<input type="text" oninput="blocks[\${i}].text=this.value" placeholder="Subtitulo..." value="\${escapeHtml(b.text||'')}">\`;
+    case 'image': return \`<input type="url" oninput="blocks[\${i}].src=this.value" placeholder="URL imagen..." value="\${escapeHtml(b.src||'')}"><input type="text" oninput="blocks[\${i}].alt=this.value" placeholder="Alt text..." value="\${escapeHtml(b.alt||'')}">\`;
+    case 'code': return \`<textarea oninput="blocks[\${i}].text=this.value" placeholder="Codigo...">\${escapeHtml(b.text||'')}</textarea>\`;
+    case 'quote': return \`<textarea oninput="blocks[\${i}].text=this.value" placeholder="Cita...">\${escapeHtml(b.text||'')}</textarea>\`;
+    case 'list': return \`<label style="font-size:.8rem"><input type="checkbox" \${b.ordered?'checked':''} onchange="blocks[\${i}].ordered=this.checked"> Ordenada</label><textarea oninput="blocks[\${i}].items=this.value.split('\\n')" placeholder="Items (uno por linea)...">\${escapeHtml((b.items||[]).join('\\n'))}</textarea>\`;
+    case 'divider': return '<em style="color:var(--muted)">Divisor horizontal</em>';
+    default: return '';
+  }
+}
+
+function addBlock(type) {
+  const base = { type };
+  if (type === 'paragraph') base.text = '';
+  if (type === 'heading' || type === 'heading3') base.text = '';
+  if (type === 'image') base.src = ''; base.alt = '';
+  if (type === 'code' || type === 'quote') base.text = '';
+  if (type === 'list') base.items = []; base.ordered = false;
+  blocks.push(base);
+  renderBlocks();
+}
+function changeType(i, type) { blocks[i] = { type }; if (type !== 'divider') blocks[i].text = ''; renderBlocks(); }
+function moveBlock(i, dir) { const j = i+dir; if (j<0 || j>=blocks.length) return; [blocks[i], blocks[j]] = [blocks[j], blocks[i]]; renderBlocks(); }
+function removeBlock(i) { blocks.splice(i,1); renderBlocks(); }
+
+async function uploadFile(file) {
+  const preview = $('#uploadPreview');
+  preview.innerHTML = '<p style="color:var(--muted)">Subiendo...</p>';
+  const form = new FormData();
+  form.append('image', file);
+  try {
+    const r = await fetch(API + '/api/upload', { method:'POST', headers:{ 'Authorization':'Bearer '+token }, body: form });
+    if (!r.ok) throw new Error('Error al subir');
+    const d = await r.json();
+    $('#featuredImage').value = d.url;
+    preview.innerHTML = \`<img class="image-preview" src="\${d.url}" alt="preview">\`;
+  } catch(e) { preview.innerHTML = '<p class="msg msg-err">'+e.message+'</p>'; }
+}
+
+async function savePost() {
+  const msg = $('#msg');
+  msg.innerHTML = '';
+  const title = $('#title').value.trim();
+  if (!title) { msg.innerHTML = '<div class="msg msg-err">Titulo requerido</div>'; return; }
+  const slug = $('#slug').value.trim() || undefined;
+  const excerpt = $('#excerpt').value.trim();
+  const status = $('#status').value;
+  const readTime = parseInt($('#readTime').value, 10) || undefined;
+  const featuredImage = $('#featuredImage').value.trim() || undefined;
+  const taxonomyIds = $$('#taxSelect input:checked').map(ch => ch.value);
+  const payload = { title, content: JSON.stringify(blocks), excerpt, status, taxonomyIds };
+  if (slug) payload.slug = slug;
+  if (readTime) payload.meta = { readTime };
+  if (featuredImage) payload.featuredImage = featuredImage;
+  try {
+    if (currentPost) {
+      await api('/posts/' + currentPost._id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    } else {
+      await api('/posts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    }
+    msg.innerHTML = '<div class="msg msg-ok">Guardado correctamente</div>';
+    setTimeout(renderDashboard, 600);
+  } catch(e) { msg.innerHTML = '<div class="msg msg-err">'+e.message+'</div>'; }
+}
+
+function escapeHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(iso) { if(!iso) return ''; const d=new Date(iso); return d.toLocaleDateString('es-MX',{year:'numeric',month:'short',day:'numeric'}); }
+
+// Init
+if (token && user) renderDashboard(); else renderLogin();
+</script>
+</body>
+</html>
