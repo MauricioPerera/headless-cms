@@ -125,10 +125,21 @@ Antes de hacer push, configura los siguientes valores en **Settings → Secrets 
 |----------|-----------|---------|-------------|
 | `SITE_NAME` | Opcional | `Mi Blog Headless` | Titulo del sitio |
 | `SITE_DESCRIPTION` | Opcional | `Blog sobre desarrollo` | Meta descripcion |
-| `SITE_URL` | **Si** | `https://miusuario.github.io/mi-blog/` | URL completa del sitio. **Importante**: sin esta variable, los links de RSS y sitemap apuntaran a una URL de ejemplo. |
-| `BASE_PATH` | **Si** | `/mi-blog/` | Path relativo si el repo es un proyecto. Si tu repo se llama `miusuario.github.io` (usuario), usa `/`. |
+| `SITE_URL` | **Si** | `https://mauricioperera.github.io/` | URL completa del sitio. Ver tabla de ejemplos abajo. |
+| `BASE_PATH` | **Si** | `/` | Path relativo. Ver tabla de ejemplos abajo. |
 
-**Nota sobre SITE_URL y BASE_PATH**: el workflow tiene valores de ejemplo por defecto (`https://miusuario.github.io/mi-blog/` y `/mi-blog/`). Si no configuras tus variables reales, los feeds RSS y los links internos estaran rotos.
+**Importante**: `SITE_URL` y `BASE_PATH` dependen del tipo de repositorio. Elige la fila que corresponda a tu caso:
+
+| Tipo de repo | Nombre del repo | `SITE_URL` | `BASE_PATH` |
+|--------------|-----------------|------------|-------------|
+| **Usuario / Organizacion** | `mauricioperera.github.io` | `https://mauricioperera.github.io/` | `/` |
+| **Proyecto** | `headless-cms` | `https://mauricioperera.github.io/headless-cms/` | `/headless-cms/` |
+
+Si tu repo es de **proyecto** (cualquier nombre distinto a tu usuario), usa `BASE_PATH=/nombre-del-repo/` y `SITE_URL=https://tuusuario.github.io/nombre-del-repo/`.
+
+Si tu repo se llama exactamente como tu usuario (`tuusuario.github.io`), usa `BASE_PATH=/` y `SITE_URL=https://tuusuario.github.io/`.
+
+**Sin estas variables, los feeds RSS y los links internos apuntaran a una URL de ejemplo y estaran rotos.**
 
 ### Paso 3: Hacer push
 
