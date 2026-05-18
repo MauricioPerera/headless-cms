@@ -37,6 +37,7 @@ jobs:
           SITE_DESCRIPTION: ${{ vars.SITE_DESCRIPTION || 'Blog generado con Headless CMS' }}
           SITE_URL: ${{ vars.SITE_URL || 'https://miusuario.github.io/mi-blog/' }}
           BASE_PATH: ${{ vars.BASE_PATH || '/mi-blog/' }}
+          SITE_OG_IMAGE: ${{ vars.SITE_OG_IMAGE || '' }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
