@@ -191,6 +191,7 @@ async function build() {
       content: renderContent(post.content),
       excerpt: escapeHtml(post.excerpt || ''),
       readTime: (post.meta && post.meta.readTime) ? post.meta.readTime : 5,
+      featuredImage: post.featuredImage ? (typeof post.featuredImage === "string" ? { src: post.featuredImage, alt: post.title } : { src: post.featuredImage.src, alt: post.featuredImage.alt || post.title, caption: post.featuredImage.caption || "" }) : null,
       author: author ? { displayName: author.displayName || author.username } : null,
       categories: categories.map(t => ({ ...t, basePath: CONFIG.basePath })),
       tags: tags.map(t => ({ ...t, basePath: CONFIG.basePath })),
@@ -376,3 +377,5 @@ build().catch(err => {
   console.error(err);
   process.exit(1);
 });
+
+

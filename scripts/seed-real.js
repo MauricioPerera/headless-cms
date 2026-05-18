@@ -65,6 +65,7 @@ async function seed() {
     status: 'published',
     authorId: mauricio._id,
     taxonomyIds: [catArquitectura._id, catHerramientas._id, tagJS._id, tagNode._id, tagCMS._id, tagWordPress._id],
+    featuredImage: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=1200&h=600&fit=crop',
     meta: { readTime: 8 }
   });
   console.log('Post: Por que deje WordPress...');
@@ -74,6 +75,7 @@ async function seed() {
     title: 'Construyendo un generador de sitios estaticos sin dependencias',
     content: JSON.stringify([
       { type: 'paragraph', text: 'Los SSG modernos como Astro o Eleventy son excelentes, pero muchas veces traen mas de lo que necesitas. Mi objetivo era simple: convertir una base de datos JSON en HTML estatico, sin webpack, sin bundlers, sin 200MB de node_modules.' },
+      { type: 'image', src: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&h=400&fit=crop', alt: 'Editor de codigo con tema oscuro' },
       { type: 'heading', text: 'El motor de templates' },
       { type: 'paragraph', text: 'En lugar de usar un motor de templates completo como Handlebars o EJS, escribi un renderizador de 10 lineas que entiende {{variables}} y bloques {{#array}}...{{/array}}.' },
       { type: 'code', text: 'function render(template, data) {\n  return template\n    .replace(/\\{\\{#(\\w+)\\}\\}([\\s\\S]*?)\\{\\{/\\1\\}\\}/g, (m,k,inner) =>\n      (data[k]||[]).map(i => render(inner, {...data,...i})).join(\"\"))\n    .replace(/\\{\\{(\\w+)\\}\\}/g, (m,k) => data[k] ?? m);\n}' },
@@ -94,6 +96,7 @@ async function seed() {
     status: 'published',
     authorId: mauricio._id,
     taxonomyIds: [catArquitectura._id, catFrontend._id, tagSSG._id, tagNode._id, tagJS._id, tagVite._id],
+    featuredImage: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1200&h=600&fit=crop',
     meta: { readTime: 12 }
   });
   console.log('Post: Construyendo un generador de sitios estaticos...');
@@ -159,6 +162,7 @@ async function seed() {
     status: 'published',
     authorId: ana._id,
     taxonomyIds: [catHerramientas._id, tagGit._id],
+    featuredImage: 'https://images.unsplash.com/photo-1556075798-4825dfaaf498?w=1200&h=600&fit=crop',
     meta: { readTime: 10 }
   });
   console.log('Post: Git workflows que escalan...');
@@ -171,3 +175,9 @@ seed().catch(err => {
   console.error(err);
   process.exit(1);
 });
+
+
+
+
+
+

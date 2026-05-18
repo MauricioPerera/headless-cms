@@ -5,6 +5,12 @@
 
 <section class="post-list">
   {{#posts}}
+  {{#featuredImage}}
+  <div class="post-card-image">
+    <img src="{{src}}" alt="{{alt}}" loading="lazy">
+  </div>
+{{/featuredImage}}
+
   <article class="post-card">
     <h2><a href="{{basePath}}posts/{{slug}}.html">{{title}}</a></h2>
     <p class="excerpt">{{excerpt}}</p>
@@ -25,3 +31,4 @@
   </article>
   {{/posts}}
 </section>
+

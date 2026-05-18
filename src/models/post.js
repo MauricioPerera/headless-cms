@@ -61,7 +61,8 @@ globalHooks.on('post.beforeInsert', async (ctx) => {
     doc.taxonomyIds = [];
   }
 
-  doc.meta = doc.meta || {};
+  doc.featuredImage = doc.featuredImage || null;
+  
   doc.createdAt = new Date().toISOString();
   doc.updatedAt = doc.createdAt;
   if (doc.status === 'published' && !doc.publishedAt) doc.publishedAt = doc.createdAt;
@@ -158,3 +159,4 @@ module.exports = {
   removePostById,
   resolvePostRelations,
 };
+
