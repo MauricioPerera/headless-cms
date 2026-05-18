@@ -8,6 +8,7 @@ const authRoutes = require('./api/routes/auth');
 const postRoutes = require('./api/routes/posts');
 const userRoutes = require('./api/routes/users');
 const taxonomyRoutes = require('./api/routes/taxonomies');
+const webhookRoutes = require('./api/routes/webhooks');
 const { flushAll } = require('./core/store');
 
 const app = express();
@@ -37,6 +38,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/taxonomies', taxonomyRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

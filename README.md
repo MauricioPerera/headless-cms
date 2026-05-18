@@ -17,6 +17,7 @@ CMS minimalista basado en [js-doc-store](https://github.com/MauricioPerera/js-do
 - **Deploy automatico**: GitHub Actions a GitHub Pages en cada push a `main`.
 - **Persistencia real**: la base de datos `db/` se commitea en el repo, no se regenera en CI.
 - **Editor web**: panel administrativo en `http://localhost:3000/` para crear/editar posts sin Postman.
+- **Webhooks**: notificacion a endpoints externos cuando un post se publica (util para revalidar frontends Next.js/Astro).
 
 ## Modos de uso
 
@@ -43,6 +44,9 @@ API en `http://localhost:3000`.
 | GET | `/api/users/me` | Perfil actual |
 | GET | `/api/taxonomies` | Listar taxonomias |
 | POST | `/api/taxonomies` | Crear taxonomia (admin/editor) |
+| GET | `/api/webhooks` | Listar webhooks (admin) |
+| POST | `/api/webhooks` | Crear webhook (admin) |
+| DELETE | `/api/webhooks/:id` | Eliminar webhook (admin) |
 
 **Rate limiting**:
 - Global: 100 peticiones/minuto por IP.
@@ -92,6 +96,39 @@ dist/
     style.css             # Tema claro/oscuro responsive
     app.js                # Busqueda + toggle de tema
 ```
+
+### 4. Webhooks
+
+Los webhooks se disparan automaticamente cuando un post cambia a `status: 'published'` (tanto en creacion como en actualizacion).
+
+Para configurar un webhook:
+
+```bash
+curl -X POST http://localhost:3000/api/webhooks \
+  -H "Authorization: Bearer TU_TOKEN_ADMIN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://tu-servidor.com/revalidate",
+    "events": ["post.published"],
+    "secret": "clave-secreta-para-verificar"
+  }'
+```
+
+Payload enviado al webhook:
+
+```json
+{
+  "event": "post.published",
+  "payload": { /* post completo */ },
+  "timestamp": "2026-05-18T19:00:00.000Z"
+}
+```
+
+Headers incluidos:
+- `Content-Type: application/json`
+- `X-Webhook-Secret`: si se configuro secret
+
+Los fallos de entrega son silenciosos (no interrumpen la operacion del post) y se loggean en la consola del servidor.
 
 ## Bloques de contenido soportados
 
@@ -253,7 +290,7 @@ O `vercel.json`:
 npm test
 ```
 
-20 tests: health, auth, posts, taxonomias, usuarios, permisos.
+24 tests: health, auth, posts, taxonomias, usuarios, webhooks, permisos.
 
 ## Actualizar js-doc-store
 
@@ -275,8 +312,9 @@ src/
     auth.js       # bcrypt + JWT
   models/
     user.js       # Usuarios con validacion
-    post.js       # Posts con relaciones
+    post.js       # Posts con relaciones + hooks afterUpdate
     taxonomy.js   # Categorias y tags
+    webhook.js    # Endpoints externos + trigger en hooks
   api/
     middleware/
       auth.js     # Verificacion JWT
@@ -287,6 +325,7 @@ src/
       posts.js
       users.js
       taxonomies.js
+      webhooks.js
 
 db/               # Base de datos documental (persistida en repo)
 templates/        # Templates HTML para SSG
@@ -318,3 +357,4 @@ Ver [CHANGELOG.md](CHANGELOG.md).
 7. **Plugins inseguros**: la arquitectura de hooks async permite sandboxing futuro.
 8. **Sobrescritura accidental de contenido**: el workflow de CI nunca ejecuta seed, protege tu db/.
 9. **Fuerza bruta en login**: rate limiting de 10 intentos/15 min por IP.
+10. **Revalidacion manual de frontend**: los webhooks automatizan la notificacion a tu frontend cuando cambia el contenido.

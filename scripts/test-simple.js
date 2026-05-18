@@ -4,6 +4,7 @@ const app = require('../src/app');
 const { createUser, findUserByUsername } = require('../src/models/user');
 const { createTaxonomy } = require('../src/models/taxonomy');
 const { createPost } = require('../src/models/post');
+const { createWebhook, listWebhooks } = require('../src/models/webhook');
 const { signToken } = require('../src/core/auth');
 
 let server;
@@ -212,6 +213,37 @@ async function runTests() {
     if (data.passwordHash) throw new Error('passwordHash leaked in me');
     ok('Users: get me');
   } catch (e) { fail('Users: get me', e); }
+
+  // Webhooks
+  try {
+    const { status, data } = await request('POST', '/api/webhooks', {
+      token: adminToken,
+      body: { url: 'https://httpbin.org/post', events: ['post.published'], secret: 'shh' }
+    });
+    await assertEqual(status, 201, 'create webhook');
+    ok('Webhooks: create as admin');
+  } catch (e) { fail('Webhooks: create as admin', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/webhooks', { token: adminToken });
+    await assertEqual(status, 200, 'list webhooks');
+    if (!Array.isArray(data.webhooks)) throw new Error('webhooks not array');
+    if (data.webhooks.length < 1) throw new Error('webhooks empty');
+    ok('Webhooks: list as admin');
+  } catch (e) { fail('Webhooks: list as admin', e); }
+
+  try {
+    const { status } = await request('GET', '/api/webhooks', { token: authorToken });
+    await assertEqual(status, 403, 'list as author');
+    ok('Webhooks: reject author');
+  } catch (e) { fail('Webhooks: reject author', e); }
+
+  try {
+    const whs = listWebhooks();
+    const { status } = await request('DELETE', `/api/webhooks/${whs[0]._id}`, { token: adminToken });
+    await assertEqual(status, 204, 'delete webhook');
+    ok('Webhooks: delete');
+  } catch (e) { fail('Webhooks: delete', e); }
 
   // Report
   console.log('\n--- RESULTS ---');

@@ -88,7 +88,12 @@ async function createPost(doc) {
 async function updatePost(filter, update) {
   const col = getPostCollection();
   const ctx = await globalHooks.run('post.beforeUpdate', { filter, update });
-  return col.update(ctx.filter || filter, ctx.update || update);
+  const result = col.update(ctx.filter || filter, ctx.update || update);
+  if (result > 0) {
+    const updated = col.findOne(ctx.filter || filter);
+    await globalHooks.run('post.afterUpdate', { filter, update, doc: updated });
+  }
+  return result;
 }
 
 function findPostById(id, { withAuthor = false, withTaxonomies = false } = {}) {

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-18 — Webhooks
+
+### Agregado
+
+- **Webhooks**: notificacion a endpoints externos cuando un post se publica.
+  - Modelo `webhook.js` con coleccion en db, filtrado por eventos.
+  - Endpoints API: `GET/POST/DELETE /api/webhooks` (solo admin).
+  - Disparo automatico en `post.afterInsert` y `post.afterUpdate` cuando `status === 'published'`.
+  - Payload POST incluye `{ event, payload, timestamp }`.
+  - Soporte opcional de `X-Webhook-Secret` para verificacion del receptor.
+  - Fallos silenciosos con log en consola (no interrumpen la operacion del post).
+
 ## 2026-05-18 — Correcciones de seguridad y robustez
 
 ### Corregido
@@ -20,7 +32,7 @@
    - Impacto: evita `javascript:` y otras URLs arbitrarias en iframes.
 
 4. **createIndex silencioso** (`src/models/*.js`)
-   - Antes: `try/catch` genérico ignoraba cualquier error de indice.
+   - Antes: `try/catch` generico ignoraba cualquier error de indice.
    - Ahora: solo se ignora el error "already exists"; cualquier otro error se propaga.
    - Impacto: errores reales de indices ya no se ocultan.
 
@@ -33,6 +45,18 @@
    - Antes: `lib/js-doc-store.js` solo se actualizaba manualmente.
    - Ahora: `npm run update:jsdocstore` descarga la version mas reciente desde GitHub.
    - Impacto: flujo de actualizacion documentado.
+
+## 2026-05-18 — Rate limiting + Editor web
+
+### Agregado
+
+- **Rate limiting**: proteccion contra fuerza bruta en `/api/auth/login`.
+  - Global: 100 req/minuto por IP.
+  - Auth: 10 intentos/15 minutos, bloqueo de 30 min tras exceder.
+- **Editor web**: panel administrativo en `http://localhost:3000/`.
+  - Login persistente via localStorage.
+  - CRUD de posts y taxonomias con UI oscura minimalista.
+  - Edicion de contenido JSON de bloques en textarea.
 
 ## 2026-05-18 — Version inicial
 
