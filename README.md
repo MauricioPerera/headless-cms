@@ -5,19 +5,22 @@ CMS minimalista basado en [js-doc-store](https://github.com/MauricioPerera/js-do
 ## Caracteristicas
 
 - **Persistencia documental**: sin SQL, sin migraciones, sin JOINs costosos.
-- **Autenticacion JWT**: registro, login, roles (admin, editor, author, subscriber).
-- **Gestion de contenido**: posts con estados (draft, published, archived), taxonomias (categorias y tags).
+- **Autenticacion JWT**: registro, login, roles (admin, editor).
+- **Gestion de contenido**: posts con estados (draft, published), taxonomias (categorias y tags), paginas estaticas.
 - **Relaciones entre documentos**: referencias por ID con resolucion opcional.
-- **Hooks async**: middleware para validacion, sanitizacion y auditoria.
+- **Hooks async**: middleware para validacion, sanitizacion y disparo de webhooks.
 - **Indices**: hash y sorted sobre campos clave.
-- **Seguridad**: sin SQL injection, bcrypt, validacion en hooks, rate limiting.
+- **Seguridad**: sin SQL injection, bcrypt, validacion en hooks, rate limiting, CORS configurable.
 - **Generador estatico**: HTML, RSS, sitemap, JSON API estatica, busqueda client-side.
 - **Theme oscuro**: toggle manual + deteccion de preferencia del sistema.
-- **Bloques de contenido**: paragraph, heading, heading3, quote, code, image, list, callout, divider, table, embed.
-- **Deploy automatico**: GitHub Actions a GitHub Pages en cada push a `main`.
+- **SEO completo**: Open Graph, Twitter Cards, Schema.org JSON-LD, breadcrumbs.
+- **Paginacion**: index paginado con navegacion anterior/siguiente.
+- **Imagenes**: featured images, imagenes inline en bloques, subida via API con multer.
+- **Multi-autor**: avatar y bio por usuario, author card en posts.
+- **Deploy automatico**: GitHub Actions a GitHub Pages en cada push a `master`.
 - **Persistencia real**: la base de datos `db/` se commitea en el repo, no se regenera en CI.
-- **Editor web**: panel administrativo en `http://localhost:3000/` para crear/editar posts sin Postman.
-- **Webhooks**: notificacion a endpoints externos cuando un post se publica (util para revalidar frontends Next.js/Astro).
+- **Editor web**: panel administrativo en `http://localhost:3000/admin` para crear/editar posts y paginas.
+- **Webhooks**: notificacion real a endpoints externos cuando un post se publica.
 
 ## Modos de uso
 
@@ -31,22 +34,28 @@ JWT_SECRET=tu-secreto npm start
 
 API en `http://localhost:3000`.
 
-| Metodo | Endpoint | Descripcion |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Registrar usuario |
-| POST | `/api/auth/login` | Iniciar sesion |
-| GET | `/api/posts` | Listar posts (filtros, paginacion, relaciones) |
-| GET | `/api/posts/:idOrSlug` | Obtener post |
-| POST | `/api/posts` | Crear post (autenticado) |
-| PATCH | `/api/posts/:id` | Actualizar post |
-| DELETE | `/api/posts/:id` | Eliminar post |
-| GET | `/api/users` | Listar usuarios (admin/editor) |
-| GET | `/api/users/me` | Perfil actual |
-| GET | `/api/taxonomies` | Listar taxonomias |
-| POST | `/api/taxonomies` | Crear taxonomia (admin/editor) |
-| GET | `/api/webhooks` | Listar webhooks (admin) |
-| POST | `/api/webhooks` | Crear webhook (admin) |
-| DELETE | `/api/webhooks/:id` | Eliminar webhook (admin) |
+| Metodo | Endpoint | Descripcion | Rol minimo |
+|--------|----------|-------------|------------|
+| POST | `/api/auth/register` | Registrar usuario | -- |
+| POST | `/api/auth/login` | Iniciar sesion | -- |
+| GET | `/api/posts` | Listar posts (filtros, paginacion, relaciones) | -- |
+| GET | `/api/posts/:idOrSlug` | Obtener post | -- |
+| POST | `/api/posts` | Crear post | editor |
+| PATCH | `/api/posts/:id` | Actualizar post | editor |
+| DELETE | `/api/posts/:id` | Eliminar post | admin |
+| GET | `/api/pages` | Listar paginas | -- |
+| GET | `/api/pages/:idOrSlug` | Obtener pagina | -- |
+| POST | `/api/pages` | Crear pagina | editor |
+| PATCH | `/api/pages/:id` | Actualizar pagina | editor |
+| DELETE | `/api/pages/:id` | Eliminar pagina | admin |
+| GET | `/api/users` | Listar usuarios | admin |
+| GET | `/api/users/me` | Perfil actual | autenticado |
+| GET | `/api/taxonomies` | Listar taxonomias | -- |
+| POST | `/api/taxonomies` | Crear taxonomia | editor |
+| GET | `/api/webhooks` | Listar webhooks | admin |
+| POST | `/api/webhooks` | Crear webhook | admin |
+| DELETE | `/api/webhooks/:id` | Eliminar webhook | admin |
+| POST | `/api/upload` | Subir imagen | autenticado |
 
 **Rate limiting**:
 - Global: 100 peticiones/minuto por IP.
@@ -54,13 +63,15 @@ API en `http://localhost:3000`.
 
 ### 2. Editor web
 
-Al iniciar `npm start`, visita `http://localhost:3000/` para acceder al panel administrativo.
+Al iniciar `npm start`, visita `http://localhost:3000/admin` para acceder al panel administrativo.
 
 Permite:
-- Iniciar sesion con usuario y contraseña
-- Listar, crear, editar y eliminar posts
-- Gestionar taxonomias (categorias y tags)
-- Editar contenido como JSON de bloques
+- Iniciar sesion con usuario y contrasena
+- Tabs **Posts** y **Paginas** para alternar entre tipos de contenido
+- Listar, crear, editar y eliminar posts y paginas
+- Editor visual de bloques: parrafo, heading, imagen, code, cita, lista, divisor
+- Subir imagenes via drag & drop o click (max 5MB)
+- Asignar featured image, taxonomias y estado de publicacion
 
 ### 3. Sitio estatico (SSG)
 
@@ -76,25 +87,29 @@ La carpeta `dist/` contiene:
 ```
 dist/
   index.html
+  page/2.html              # Paginacion
   posts/
     slug-del-post.html
   categories/
     tecnologia.html
-    tecnologia.xml        # RSS por categoria
+    tecnologia.xml         # RSS por categoria
     index.html
   tags/
     javascript.html
-    javascript.xml        # RSS por tag
+    javascript.xml         # RSS por tag
     index.html
-  feed.xml                # RSS global
+  acerca-de.html           # Paginas estaticas
+  contacto.html
+  feed.xml                 # RSS global
   sitemap.xml
   api/
     posts.json
     taxonomies.json
-    search.json           # Indice para busqueda client-side
+    search.json            # Indice para busqueda client-side
   assets/
-    style.css             # Tema claro/oscuro responsive
-    app.js                # Busqueda + toggle de tema
+    style.css              # Tema claro/oscuro responsive
+    app.js                 # Busqueda + toggle de tema
+    images/                # Imagenes subidas via upload
 ```
 
 ### 4. Webhooks
@@ -132,59 +147,145 @@ Los fallos de entrega son silenciosos (no interrumpen la operacion del post) y s
 
 ## Bloques de contenido soportados
 
-El campo `content` de un post es un array JSON de bloques:
+El campo `content` de un post o pagina es un array JSON de bloques:
 
 ```json
 [
   { "type": "paragraph", "text": "Texto normal." },
   { "type": "heading", "text": "Titulo de seccion" },
   { "type": "heading3", "text": "Subtitulo" },
-  { "type": "quote", "text": "Una cita inspiradora." },
-  { "type": "code", "text": "console.log('hola');" },
-  { "type": "image", "src": "./img.png", "alt": "Descripcion" },
-  { "type": "list", "ordered": false, "items": ["Uno", "Dos", "Tres"] },
-  { "type": "callout", "title": "Nota", "text": "Informacion importante." },
+  { "type": "image", "src": "https://...", "alt": "Descripcion" },
+  { "type": "code", "text": "const x = 1;" },
+  { "type": "quote", "text": "Cita importante." },
+  { "type": "list", "items": ["A", "B", "C"], "ordered": false },
+  { "type": "callout", "title": "Nota", "text": "Informacion util." },
   { "type": "divider" },
-  { "type": "table", "headers": ["A", "B"], "rows": [["1", "2"], ["3", "4"]] },
-  { "type": "embed", "src": "https://www.youtube.com/embed/XXXX" }
+  { "type": "table", "headers": ["A", "B"], "rows": [["1", "2"]] },
+  { "type": "embed", "src": "https://youtube.com/watch?v=..." }
 ]
 ```
 
-## Theme oscuro
+## SEO y metadatos
 
-El sitio estatico incluye un toggle de tema en la barra de navegacion. Detecta la preferencia del sistema (`prefers-color-scheme`) y la guarda en `localStorage`.
+El generador estatico produce automaticamente:
+
+- **Open Graph**: `og:title`, `og:description`, `og:url`, `og:image`, `og:type`, `og:site_name`
+- **Twitter Cards**: `twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`
+- **Schema.org JSON-LD**: `BlogPosting` (posts), `WebSite` (index), `CollectionPage` (taxonomias), `WebPage` (paginas)
+- **Breadcrumbs**: navegacion HTML con microdata `BreadcrumbList`
+- **Canonical URL**: en todas las paginas
+
+Configura `SITE_OG_IMAGE` en GitHub Actions para una imagen por defecto cuando un post no tiene `featuredImage`.
+
+## Paginacion
+
+Por defecto se muestran 5 posts por pagina. Configurable via variable de entorno `POSTS_PER_PAGE`.
+
+- Pagina 1: `index.html`
+- Pagina 2: `page/2.html`
+- Pagina N: `page/N.html`
+
+Navegacion con "Anterior" y "Siguiente" en cada pagina.
+
+## Paginas estaticas
+
+Ademas de posts, puedes crear paginas estaticas como "Acerca de", "Contacto", etc.:
+
+```bash
+curl -X POST http://localhost:3000/api/pages \
+  -H "Authorization: Bearer $token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Acerca de",
+    "slug": "acerca-de",
+    "content": [{"type":"paragraph","text":"Sobre mi..."}],
+    "excerpt": "Sobre este blog"
+  }'
+```
+
+Las paginas aparecen automaticamente en la navegacion del sitio y se generan como `dist/{slug}.html`.
+
+## Imagenes
+
+### Featured image
+
+En el campo `featuredImage` de un post (string URL u objeto):
+
+```json
+{
+  "featuredImage": "https://ejemplo.com/foto.jpg"
+}
+```
+
+O con alt y caption:
+
+```json
+{
+  "featuredImage": {
+    "src": "https://ejemplo.com/foto.jpg",
+    "alt": "Descripcion",
+    "caption": "Pie de foto"
+  }
+}
+```
+
+Se muestra arriba del titulo en el post individual y como thumbnail en las cards del index.
+
+### Subida de imagenes
+
+```bash
+curl -X POST http://localhost:3000/api/upload \
+  -H "Authorization: Bearer $token" \
+  -F "image=@mi-foto.jpg"
+```
+
+Respuesta:
+
+```json
+{
+  "url": "/assets/images/1234567890-abc123.jpg",
+  "filename": "1234567890-abc123.jpg"
+}
+```
+
+Las imagenes subidas se guardan en `static/assets/images/` y se copian a `dist/assets/images/` en el build.
+
+## Multi-autor
+
+Los usuarios pueden tener `avatar` (URL de imagen) y `bio` (texto corto):
+
+```json
+{
+  "username": "mauricio",
+  "displayName": "Mauricio Perera",
+  "avatar": "https://images.unsplash.com/...",
+  "bio": "Desarrollador full-stack...",
+  "role": "admin"
+}
+```
+
+El generador estatico muestra una **author card** al final de cada post con foto, nombre y biografia.
 
 ## Deploy automatico a GitHub Pages
 
-### Paso 1: Configurar Pages en el repo
+### Paso 1: Settings > Pages > Source: GitHub Actions
 
-1. Ve a **Settings → Pages** en tu repositorio de GitHub.
-2. En **Source**, selecciona **GitHub Actions**.
+### Paso 2: Configurar variables y secretos
 
-### Paso 2: Configurar Secrets y Variables de Actions
+En **Settings > Secrets and variables > Actions**:
 
-Antes de hacer push, configura los siguientes valores en **Settings → Secrets and variables → Actions**.
+**Secrets**:
+- `JWT_SECRET`: string largo aleatorio (32+ caracteres)
 
-#### Secrets (valores sensibles)
+**Variables**:
+- `SITE_URL`: URL completa del sitio
+- `BASE_PATH`: path del repo (ej. `/headless-cms/`)
+- `SITE_OG_IMAGE`: URL de imagen por defecto para Open Graph (opcional)
+- `POSTS_PER_PAGE`: numero de posts por pagina (default: 5, opcional)
 
-| Secret | Requerido | Descripcion |
-|--------|-----------|-------------|
-| `JWT_SECRET` | **Si** | Clave para firmar tokens JWT (minimo 32 caracteres aleatorios). **Obligatoria**: sin ella la API no arranca. |
-
-#### Variables (no sensibles)
-
-| Variable | Requerido | Ejemplo | Descripcion |
-|----------|-----------|---------|-------------|
-| `SITE_NAME` | Opcional | `Mi Blog Headless` | Titulo del sitio |
-| `SITE_DESCRIPTION` | Opcional | `Blog sobre desarrollo` | Meta descripcion |
-| `SITE_URL` | **Si** | `https://mauricioperera.github.io/` | URL completa del sitio. Ver tabla de ejemplos abajo. |
-| `BASE_PATH` | **Si** | `/` | Path relativo. Ver tabla de ejemplos abajo. |
-
-**Importante**: `SITE_URL` y `BASE_PATH` dependen del tipo de repositorio. Elige la fila que corresponda a tu caso:
-
-| Tipo de repo | Nombre del repo | `SITE_URL` | `BASE_PATH` |
+| Tipo de repo | Ejemplo de repo | `SITE_URL` | `BASE_PATH` |
 |--------------|-----------------|------------|-------------|
-| **Usuario / Organizacion** | `mauricioperera.github.io` | `https://mauricioperera.github.io/` | `/` |
+| **Usuario** | `mauricioperera.github.io` | `https://mauricioperera.github.io/` | `/` |
 | **Proyecto** | `headless-cms` | `https://mauricioperera.github.io/headless-cms/` | `/headless-cms/` |
 
 Si tu repo es de **proyecto** (cualquier nombre distinto a tu usuario), usa `BASE_PATH=/nombre-del-repo/` y `SITE_URL=https://tuusuario.github.io/nombre-del-repo/`.
@@ -199,12 +300,12 @@ Si tu repo se llama exactamente como tu usuario (`tuusuario.github.io`), usa `BA
 git init
 git add .
 git commit -m "Headless CMS con contenido persistente"
-git branch -M main
+git branch -M master
 git remote add origin https://github.com/TU_USUARIO/TU_REPO.git
-git push -u origin main
+git push -u origin master
 ```
 
-Cada push a `main` ejecuta automaticamente:
+Cada push a `master` ejecuta automaticamente:
 1. `npm ci`
 2. `npm run build` (sobre la `db/` que commiteaste)
 3. Despliegue a GitHub Pages
@@ -224,14 +325,14 @@ npm run seed        # solo la primera vez para datos iniciales
 JWT_SECRET=tu-secreto npm start   # levanta API + editor web en localhost:3000
 ```
 
-Visita `http://localhost:3000/` para usar el editor web, o usa curl/Postman contra la API REST.
+Visita `http://localhost:3000/admin` para usar el editor web, o usa curl/Postman contra la API REST.
 
 Cada cambio que hagas via editor o API se guarda automaticamente en `db/`. Cuando termines:
 
 ```bash
 git add db/
 git commit -m "Nuevos posts y taxonomias"
-git push origin main
+git push origin master
 ```
 
 El workflow de GitHub Actions detectara el push, ejecutara `npm run build` sobre tu `db/` commiteada, y desplegara el sitio actualizado.
@@ -290,7 +391,7 @@ O `vercel.json`:
 npm test
 ```
 
-24 tests: health, auth, posts, taxonomias, usuarios, webhooks, permisos.
+24 tests: health, auth, posts, paginas, taxonomias, usuarios, webhooks, permisos.
 
 ## Actualizar js-doc-store
 
@@ -311,32 +412,33 @@ src/
     hooks.js      # Sistema de hooks async
     auth.js       # bcrypt + JWT
   models/
-    user.js       # Usuarios con validacion
+    user.js       # Usuarios con validacion, avatar y bio
     post.js       # Posts con relaciones + hooks afterUpdate
+    page.js       # Paginas estaticas
     taxonomy.js   # Categorias y tags
-    webhook.js    # Endpoints externos + trigger en hooks
+    webhook.js    # Endpoints externos + trigger real en hooks
   api/
     middleware/
-      auth.js     # Verificacion JWT
+      auth.js     # Verificacion JWT + roles
       error.js    # Manejo de errores
       rate-limit.js # Rate limiting por IP
     routes/
       auth.js
       posts.js
+      pages.js
       users.js
       taxonomies.js
       webhooks.js
+      upload.js   # Subida de imagenes con multer
 
 db/               # Base de datos documental (persistida en repo)
 templates/        # Templates HTML para SSG
-static/assets/    # CSS y JS frontend
-public/           # Editor web administrativo
-  index.html
-  editor.js
+static/assets/    # CSS, JS e imagenes frontend
+public/admin/     # Editor web administrativo
 .github/workflows/
   deploy.yml      # Workflow de GitHub Actions
 scripts/
-  seed.js         # Datos de prueba (solo primera vez)
+  seed-real.js    # Datos de prueba realistas
   build-static.js # Generador de sitio estatico
   serve-static.js # Servidor de preview
   test-simple.js  # Bateria de pruebas

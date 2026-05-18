@@ -1,16 +1,59 @@
 # Changelog
 
-## 2026-05-18 — Webhooks
+## 2026-05-18 — SEO avanzado, paginacion, multi-autor, paginas estaticas
 
 ### Agregado
 
-- **Webhooks**: notificacion a endpoints externos cuando un post se publica.
-  - Modelo `webhook.js` con coleccion en db, filtrado por eventos.
-  - Endpoints API: `GET/POST/DELETE /api/webhooks` (solo admin).
+- **SEO Meta Tags + Open Graph** (`templates/layout.html`, `scripts/build-static.js`)
+  - Tags: canonical, og:title, og:description, og:url, og:image, og:type, og:site_name
+  - Twitter Cards: twitter:card, twitter:title, twitter:description, twitter:image
+  - Variable `SITE_OG_IMAGE` para imagen por defecto cuando un post no tiene featuredImage.
+
+- **Schema.org JSON-LD** (`scripts/build-static.js`)
+  - Posts: `BlogPosting` con headline, description, image, author (Person), publisher (Organization)
+  - Index: `WebSite`
+  - Taxonomias: `CollectionPage`
+  - Paginas estaticas: `WebPage`
+
+- **Breadcrumbs** (`templates/layout.html`, `static/assets/style.css`)
+  - Navegacion visual HTML con microdata `BreadcrumbList` en posts, taxonomias y paginas.
+
+- **Paginacion** (`scripts/build-static.js`, `templates/index.html`)
+  - Variable `POSTS_PER_PAGE` (default 5).
+  - Genera `index.html` (pagina 1) + `page/2.html`, `page/3.html`, etc.
+  - Navegacion anterior/siguiente con contador de pagina.
+
+- **Paginas estaticas** (`src/models/page.js`, `src/api/routes/pages.js`, `templates/page.html`)
+  - Nuevo modelo `page.js` con hooks beforeInsert/beforeUpdate.
+  - API REST `/api/pages` con CRUD completo.
+  - Template `page.html` para renderizado.
+  - Navegacion dinamica en layout: las paginas aparecen automaticamente en el menu.
+  - Seed incluye "Acerca de" y "Contacto".
+
+- **Imagenes destacadas e inline** (`src/models/post.js`, `templates/post.html`, `templates/index.html`)
+  - Campo `featuredImage` en posts (string u objeto `{ src, alt, caption }`).
+  - Renderiza en post individual (`<figure class="featured-image">`) y cards del index (`<div class="post-card-image">`).
+  - Bloque `type: "image"` ya soportado en contenido inline.
+
+- **Multi-autor en frontend** (`src/models/user.js`, `templates/post.html`, `static/assets/style.css`)
+  - Campos `avatar` (URL) y `bio` (texto) en modelo de usuario.
+  - Author card al final de cada post: foto circular, nombre, bio.
+  - Seed con avatares de ejemplo (Unsplash) para Mauricio y Ana.
+
+- **Subida de imagenes** (`src/api/routes/upload.js`, `public/admin/index.html`)
+  - Endpoint `POST /api/upload` con multer (max 5MB, solo imagenes).
+  - Guarda en `static/assets/images/` con nombre unico (`timestamp-random.ext`).
+  - Admin: drag & drop + click para subir, con preview inmediato.
+
+- **Admin web con tabs** (`public/admin/index.html`)
+  - Tabs "Posts" / "Paginas" en el dashboard.
+  - Editor de paginas simplificado (sin taxonomias ni featuredImage).
+  - Boton "+ Nuevo" detecta tab activa para crear post o pagina.
+  - Editor de bloques visual: agregar/mover/cambiar tipo/eliminar bloques.
+
+- **Webhooks reales** (`src/models/webhook.js`)
+  - `triggerWebhooks()` hace `fetch()` POST real con headers `X-Webhook-Secret`.
   - Disparo automatico en `post.afterInsert` y `post.afterUpdate` cuando `status === 'published'`.
-  - Payload POST incluye `{ event, payload, timestamp }`.
-  - Soporte opcional de `X-Webhook-Secret` para verificacion del receptor.
-  - Fallos silenciosos con log en consola (no interrumpen la operacion del post).
 
 ## 2026-05-18 — Correcciones de seguridad y robustez
 
@@ -19,44 +62,32 @@
 1. **JWT_SECRET obligatorio** (`src/core/auth.js`)
    - Antes: fallback hardcodeado `cms-dev-secret-change-in-production`.
    - Ahora: la aplicacion falla al arrancar si `JWT_SECRET` no esta definido.
-   - Impacto: evita deploys en produccion con secreto predecible.
 
 2. **ReDoS en busqueda** (`src/api/routes/posts.js`)
-   - Antes: el parametro `q` se pasaba directamente a `$regex` sin sanitizar.
-   - Ahora: `escapeRegex()` escapa todos los metacaracteres regex antes de construir el filtro.
-   - Impacto: un atacante ya no puede enviar una regex deliberadamente lenta.
+   - Antes: parametro `q` pasado directamente a `$regex`.
+   - Ahora: `escapeRegex()` escapa metacaracteres antes de construir el filtro.
 
 3. **XSS via embed** (`scripts/build-static.js`)
-   - Antes: cualquier URL en `block.src` se inyectaba en el atributo `src` del iframe.
-   - Ahora: `isSafeEmbedUrl()` valida que sea `http:` o `https:` antes de renderizar. URLs maliciosas se omiten con un warning.
-   - Impacto: evita `javascript:` y otras URLs arbitrarias en iframes.
+   - Antes: cualquier URL en `block.src` se inyectaba en `src` del iframe.
+   - Ahora: `isSafeEmbedUrl()` valida protocolo `http:` o `https:`.
 
 4. **createIndex silencioso** (`src/models/*.js`)
-   - Antes: `try/catch` generico ignoraba cualquier error de indice.
-   - Ahora: solo se ignora el error "already exists"; cualquier otro error se propaga.
-   - Impacto: errores reales de indices ya no se ocultan.
+   - Antes: try/catch generico ignoraba cualquier error.
+   - Ahora: solo se ignora "already exists"; otros errores se propagan.
 
 5. **CORS wildcard en produccion** (`src/app.js`)
-   - Antes: `cors()` sin configuracion aceptaba cualquier origen.
-   - Ahora: en produccion se puede restringir via `CORS_ORIGIN`. En desarrollo sigue siendo permisivo.
-   - Impacto: la API REST en produccion puede restringirse a dominios especificos.
+   - Antes: `cors()` sin configuracion.
+   - Ahora: restringible via `CORS_ORIGIN`.
 
 6. **Dependencia vendorizada** (`package.json`)
-   - Antes: `lib/js-doc-store.js` solo se actualizaba manualmente.
-   - Ahora: `npm run update:jsdocstore` descarga la version mas reciente desde GitHub.
-   - Impacto: flujo de actualizacion documentado.
+   - `npm run update:jsdocstore` descarga la version mas reciente.
 
-## 2026-05-18 — Rate limiting + Editor web
+## 2026-05-18 — Rate limiting + Editor web inicial
 
 ### Agregado
 
-- **Rate limiting**: proteccion contra fuerza bruta en `/api/auth/login`.
-  - Global: 100 req/minuto por IP.
-  - Auth: 10 intentos/15 minutos, bloqueo de 30 min tras exceder.
-- **Editor web**: panel administrativo en `http://localhost:3000/`.
-  - Login persistente via localStorage.
-  - CRUD de posts y taxonomias con UI oscura minimalista.
-  - Edicion de contenido JSON de bloques en textarea.
+- **Rate limiting**: 100 req/min global, 10 intentos/15 min en auth, bloqueo 30 min.
+- **Editor web**: login, CRUD de posts y taxonomias, edicion JSON de bloques.
 
 ## 2026-05-18 — Version inicial
 
