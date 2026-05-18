@@ -1,7 +1,9 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const { errorHandler } = require('./api/middleware/error');
+const { globalLimiter, authLimiter } = require('./api/middleware/rate-limit');
 const authRoutes = require('./api/routes/auth');
 const postRoutes = require('./api/routes/posts');
 const userRoutes = require('./api/routes/users');
@@ -23,6 +25,13 @@ if (CORS_ORIGIN && CORS_ORIGIN !== '*') {
 }
 
 app.use(express.json({ limit: '2mb' }));
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Rate limiting global
+app.use('/api/', globalLimiter.middleware());
+
+// Rate limiting estricto en auth (fuerza bruta)
+app.use('/api/auth/', authLimiter.middleware());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);

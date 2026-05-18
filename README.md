@@ -10,12 +10,13 @@ CMS minimalista basado en [js-doc-store](https://github.com/MauricioPerera/js-do
 - **Relaciones entre documentos**: referencias por ID con resolucion opcional.
 - **Hooks async**: middleware para validacion, sanitizacion y auditoria.
 - **Indices**: hash y sorted sobre campos clave.
-- **Seguridad**: sin SQL injection, bcrypt, validacion en hooks.
+- **Seguridad**: sin SQL injection, bcrypt, validacion en hooks, rate limiting.
 - **Generador estatico**: HTML, RSS, sitemap, JSON API estatica, busqueda client-side.
 - **Theme oscuro**: toggle manual + deteccion de preferencia del sistema.
 - **Bloques de contenido**: paragraph, heading, heading3, quote, code, image, list, callout, divider, table, embed.
 - **Deploy automatico**: GitHub Actions a GitHub Pages en cada push a `main`.
 - **Persistencia real**: la base de datos `db/` se commitea en el repo, no se regenera en CI.
+- **Editor web**: panel administrativo en `http://localhost:3000/` para crear/editar posts sin Postman.
 
 ## Modos de uso
 
@@ -24,7 +25,7 @@ CMS minimalista basado en [js-doc-store](https://github.com/MauricioPerera/js-do
 ```bash
 npm install
 npm run seed   # solo la primera vez
-npm start
+JWT_SECRET=tu-secreto npm start
 ```
 
 API en `http://localhost:3000`.
@@ -43,7 +44,21 @@ API en `http://localhost:3000`.
 | GET | `/api/taxonomies` | Listar taxonomias |
 | POST | `/api/taxonomies` | Crear taxonomia (admin/editor) |
 
-### 2. Sitio estatico (SSG)
+**Rate limiting**:
+- Global: 100 peticiones/minuto por IP.
+- Auth (`/api/auth/*`): 10 peticiones/15 minutos por IP. Despues de superar el limite, bloqueo de 30 minutos.
+
+### 2. Editor web
+
+Al iniciar `npm start`, visita `http://localhost:3000/` para acceder al panel administrativo.
+
+Permite:
+- Iniciar sesion con usuario y contraseña
+- Listar, crear, editar y eliminar posts
+- Gestionar taxonomias (categorias y tags)
+- Editar contenido como JSON de bloques
+
+### 3. Sitio estatico (SSG)
 
 ```bash
 npm run build       # genera dist/ desde la db/ existente
@@ -117,7 +132,7 @@ Antes de hacer push, configura los siguientes valores en **Settings → Secrets 
 
 | Secret | Requerido | Descripcion |
 |--------|-----------|-------------|
-| `JWT_SECRET` | Si usas la API REST | Clave para firmar tokens JWT (minimo 32 caracteres aleatorios). **No se usa en el build estatico**, pero es obligatoria si ejecutas la API en el servidor. |
+| `JWT_SECRET` | **Si** | Clave para firmar tokens JWT (minimo 32 caracteres aleatorios). **Obligatoria**: sin ella la API no arranca. |
 
 #### Variables (no sensibles)
 
@@ -169,11 +184,12 @@ Para un blog real, la base de datos `db/` **se incluye en el repositorio**. Esto
 
 ```bash
 npm run seed        # solo la primera vez para datos iniciales
-npm start           # levanta la API REST en localhost:3000
-# Usa Postman, curl, o un frontend para crear/editar posts
+JWT_SECRET=tu-secreto npm start   # levanta API + editor web en localhost:3000
 ```
 
-Cada cambio que hagas via API se guarda automaticamente en `db/`. Cuando termines:
+Visita `http://localhost:3000/` para usar el editor web, o usa curl/Postman contra la API REST.
+
+Cada cambio que hagas via editor o API se guarda automaticamente en `db/`. Cuando termines:
 
 ```bash
 git add db/
@@ -265,6 +281,7 @@ src/
     middleware/
       auth.js     # Verificacion JWT
       error.js    # Manejo de errores
+      rate-limit.js # Rate limiting por IP
     routes/
       auth.js
       posts.js
@@ -274,6 +291,9 @@ src/
 db/               # Base de datos documental (persistida en repo)
 templates/        # Templates HTML para SSG
 static/assets/    # CSS y JS frontend
+public/           # Editor web administrativo
+  index.html
+  editor.js
 .github/workflows/
   deploy.yml      # Workflow de GitHub Actions
 scripts/
@@ -297,3 +317,4 @@ Ver [CHANGELOG.md](CHANGELOG.md).
 6. **Backend obligatorio**: con SSG, puedes publicar en cualquier hosting estatico gratuito.
 7. **Plugins inseguros**: la arquitectura de hooks async permite sandboxing futuro.
 8. **Sobrescritura accidental de contenido**: el workflow de CI nunca ejecuta seed, protege tu db/.
+9. **Fuerza bruta en login**: rate limiting de 10 intentos/15 min por IP.

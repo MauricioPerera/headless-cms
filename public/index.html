@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Headless CMS — Editor</title>
+  <style>
+    :root {
+      --bg: #0f0f11; --surface: #18181b; --border: #27272a;
+      --text: #e6e6e8; --muted: #9ca3af; --accent: #60a5fa;
+      --danger: #ef4444; --success: #22c55e;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: var(--font); background: var(--bg); color: var(--text);
+      line-height: 1.5;
+    }
+    .container { max-width: 960px; margin: 0 auto; padding: 1rem; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem;
+    }
+    h1 { margin: 0; font-size: 1.25rem; }
+    h2 { margin: 0 0 0.5rem; font-size: 1rem; color: var(--muted); }
+    .btn {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text);
+      padding: 0.4rem 0.8rem; border-radius: var(--radius); cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .btn:hover { border-color: var(--accent); }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn.danger { border-color: var(--danger); color: var(--danger); }
+    .btn.small { padding: 0.2rem 0.5rem; font-size: 0.75rem; }
+    input, textarea, select {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text);
+      padding: 0.5rem; border-radius: var(--radius); font-family: var(--font); font-size: 0.9rem;
+      width: 100%;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+    .form-group { margin-bottom: 0.75rem; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem; }
+    .grid { display: grid; gap: 1rem; }
+    .post-list { display: grid; gap: 0.5rem; }
+    .post-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface); border: 1px solid var(--border); padding: 0.75rem;
+      border-radius: var(--radius);
+    }
+    .post-item .title { font-weight: 600; }
+    .post-item .meta { font-size: 0.75rem; color: var(--muted); }
+    .hidden { display: none !important; }
+    .badge {
+      display: inline-block; padding: 0.15rem 0.4rem; font-size: 0.7rem;
+      border-radius: 999px; background: var(--border); color: var(--muted);
+    }
+    .badge.published { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+    .badge.draft { background: rgba(156, 163, 175, 0.15); color: var(--muted); }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .tabs button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0.3rem 0; }
+    .tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+    .toast {
+      position: fixed; bottom: 1rem; right: 1rem; padding: 0.75rem 1rem;
+      border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border);
+      z-index: 100; animation: fadein 0.2s;
+    }
+    .toast.error { border-color: var(--danger); color: var(--danger); }
+    .toast.success { border-color: var(--success); color: var(--success); }
+    @keyframes fadein { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .block-editor { display: grid; gap: 0.5rem; }
+    .block-row {
+      display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: start;
+    }
+    .block-row textarea { min-height: 60px; }
+    .block-row input[type="text"] { width: 100%; }
+    .actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    .login-box { max-width: 360px; margin: 5rem auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Login -->
+    <div id="view-login" class="login-box">
+      <h1 style="text-align:center;margin-bottom:1.5rem">Headless CMS</h1>
+      <div class="form-group">
+        <label>Usuario</label>
+        <input id="login-user" placeholder="admin" value="admin">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input id="login-pass" type="password" placeholder="admin123" value="admin123">
+      </div>
+      <button class="btn primary" style="width:100%;margin-top:0.5rem" onclick="doLogin()">Entrar</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="view-dash" class="hidden">
+      <header>
+        <h1>Headless CMS</h1>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <span id="user-name" class="badge"></span>
+          <button class="btn small" onclick="logout()">Salir</button>
+        </div>
+      </header>
+
+      <div class="tabs">
+        <button id="tab-posts" class="active" onclick="switchTab('posts')">Posts</button>
+        <button id="tab-editor" onclick="switchTab('editor')">Nuevo post</button>
+        <button id="tab-tax" onclick="switchTab('tax')">Taxonomias</button>
+      </div>
+
+      <!-- Posts list -->
+      <div id="panel-posts">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+          <h2>Posts</h2>
+          <button class="btn primary small" onclick="newPost()">+ Nuevo</button>
+        </div>
+        <div id="posts-list" class="post-list"></div>
+      </div>
+
+      <!-- Editor -->
+      <div id="panel-editor" class="hidden">
+        <h2 id="editor-title">Nuevo post</h2>
+        <input type="hidden" id="post-id">
+        <div class="form-group">
+          <label>Titulo</label>
+          <input id="post-title" placeholder="Titulo del post">
+        </div>
+        <div class="form-group">
+          <label>Slug (opcional)</label>
+          <input id="post-slug" placeholder="auto-generado">
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select id="post-status">
+            <option value="draft">Borrador</option>
+            <option value="published">Publicado</option>
+            <option value="archived">Archivado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Extracto</label>
+          <input id="post-excerpt" placeholder="Resumen corto">
+        </div>
+        <div class="form-group">
+          <label>Contenido (bloques JSON)</label>
+          <textarea id="post-content" rows="12" placeholder='[{ "type": "paragraph", "text": "..." }]'></textarea>
+        </div>
+        <div class="form-group">
+          <label>Taxonomias (IDs separados por coma)</label>
+          <input id="post-taxonomies" placeholder="id1,id2">
+        </div>
+        <div class="form-group">
+          <label>Meta (JSON opcional)</label>
+          <input id="post-meta" placeholder='{ "readTime": 5 }'>
+        </div>
+        <div class="actions">
+          <button class="btn primary" onclick="savePost()">Guardar</button>
+          <button class="btn" onclick="cancelEdit()">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Taxonomies -->
+      <div id="panel-tax" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+          <h2>Taxonomias</h2>
+          <button class="btn primary small" onclick="newTaxonomy()">+ Nueva</button>
+        </div>
+        <div id="tax-list" class="post-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/editor.js"></script>
+</body>
+</html>
