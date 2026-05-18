@@ -9,7 +9,8 @@
     "test": "node scripts/test-simple.js",
     "build": "node scripts/build-static.js",
     "serve": "node scripts/serve-static.js",
-    "update:jsdocstore": "curl -o lib/js-doc-store.js https://raw.githubusercontent.com/MauricioPerera/js-doc-store/master/js-doc-store.js"
+    "update:jsdocstore": "curl -o lib/js-doc-store.js https://raw.githubusercontent.com/MauricioPerera/js-doc-store/master/js-doc-store.js",
+    "deploy:cloudflare": "wrangler pages deploy dist --project-name=headless-cms --branch=master"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
