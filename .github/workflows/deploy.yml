@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy
 
 on:
   push:
@@ -17,6 +17,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,11 +40,16 @@ jobs:
           SITE_URL: ${{ vars.SITE_URL || 'https://miusuario.github.io/mi-blog/' }}
           BASE_PATH: ${{ vars.BASE_PATH || '/mi-blog/' }}
           SITE_OG_IMAGE: ${{ vars.SITE_OG_IMAGE || '' }}
+          POSTS_PER_PAGE: ${{ vars.POSTS_PER_PAGE || '5' }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
+
+      - name: Deploy to Cloudflare Pages
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx wrangler pages deploy dist --project-name=headless-cms --branch=master
 
   deploy:
     needs: build

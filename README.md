@@ -266,16 +266,24 @@ Los usuarios pueden tener `avatar` (URL de imagen) y `bio` (texto corto):
 
 El generador estatico muestra una **author card** al final de cada post con foto, nombre y biografia.
 
-## Deploy automatico a GitHub Pages
+## Deploy automatico
 
-### Paso 1: Settings > Pages > Source: GitHub Actions
+El workflow de CI/CD despliega a **dos destinos simultaneamente** en cada push a `master`:
 
-### Paso 2: Configurar variables y secretos
+1. **GitHub Pages** (gratuito, incluido en el repo)
+2. **Cloudflare Pages** (gratuito, CDN global mas rapido)
+
+### Paso 1: Configurar GitHub Pages
+
+En tu repo de GitHub: **Settings > Pages > Source: GitHub Actions**
+
+### Paso 2: Configurar variables y secretos en GitHub
 
 En **Settings > Secrets and variables > Actions**:
 
 **Secrets**:
 - `JWT_SECRET`: string largo aleatorio (32+ caracteres)
+- `CLOUDFLARE_API_TOKEN`: token de API de Cloudflare (opcional, solo si quieres deploy a Cloudflare)
 
 **Variables**:
 - `SITE_URL`: URL completa del sitio
@@ -294,7 +302,25 @@ Si tu repo se llama exactamente como tu usuario (`tuusuario.github.io`), usa `BA
 
 **Sin estas variables, los feeds RSS y los links internos apuntaran a una URL de ejemplo y estaran rotos.**
 
-### Paso 3: Hacer push
+### Paso 3: Crear Cloudflare API Token (opcional)
+
+Si quieres deploy a Cloudflare Pages:
+
+1. Ve a [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+2. Clic en **Create Token**
+3. Usa la plantilla **"Custom token"**
+4. Configuracion:
+   - **Token name**: `GitHub Actions Headless CMS`
+   - **Permissions**:
+     - `Cloudflare Pages:Edit`
+     - `Account:Read`
+   - **Account Resources**: Include your account
+   - **Zone Resources**: None
+5. Copia el token y agregalo como secret `CLOUDFLARE_API_TOKEN` en GitHub
+
+Si omites este paso, el deploy a GitHub Pages seguira funcionando. El deploy a Cloudflare simplemente se saltara.
+
+### Paso 4: Hacer push
 
 ```bash
 git init
@@ -308,11 +334,18 @@ git push -u origin master
 Cada push a `master` ejecuta automaticamente:
 1. `npm ci`
 2. `npm run build` (sobre la `db/` que commiteaste)
-3. Despliegue a GitHub Pages
+3. Despliegue a **GitHub Pages**
+4. Despliegue a **Cloudflare Pages** (si `CLOUDFLARE_API_TOKEN` existe)
 
 Puedes ver el progreso en la pestana **Actions** de tu repositorio.
 
 **El workflow NO ejecuta `npm run seed`**. Esto garantiza que tu contenido no se sobrescriba en cada deploy.
+
+### URLs de deploy
+
+Despues del primer deploy:
+- **GitHub Pages**: `https://TU_USUARIO.github.io/TU_REPO/`
+- **Cloudflare Pages**: `https://headless-cms-XXXX.pages.dev/` (el proyecto se crea automaticamente)
 
 ## Flujo de trabajo con persistencia
 
