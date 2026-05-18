@@ -50,10 +50,24 @@
   .tabs { display:flex; gap:.5rem; margin-bottom:1rem; border-bottom:1px solid var(--border); }
   .tab { padding:.4rem .8rem; font-size:.9rem; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
   .tab.active { border-bottom-color:var(--accent); color:var(--accent); font-weight:500; }
+
+  .toast { position: fixed; bottom: 1rem; right: 1rem; padding: .75rem 1rem; border-radius: .5rem; color: #fff; font-size: .9rem; z-index: 9999; animation: fadeIn .3s ease; }
+  .toast-success { background: #10b981; }
+  .toast-warning { background: #f59e0b; }
+  .toast-error { background: #ef4444; }
+  .toast-info { background: #3b82f6; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+  .offline-banner { display: none; background: #f59e0b; color: #fff; text-align: center; padding: .5rem; font-size: .85rem; }
+  .sync-status { font-size: .75rem; color: #94a3b8; margin-left: auto; }
+  button:disabled { opacity: .6; cursor: not-allowed; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-radius: 50%; border-top-color: #fff; animation: spin .8s linear infinite; margin-left: .5rem; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
-<div id="app"></div>
+<div class="offline-banner" id="offlineBanner">Sin conexion — los cambios se sincronizaran al reconectar</div>
+  <div id='toastBox' style='position:fixed;bottom:1rem;right:1rem;z-index:9999;'></div>
+  <div id="app"></div>
 <script>
 const API = location.origin;
 const $ = (s, el=document) => el.querySelector(s);
@@ -184,6 +198,7 @@ async function renderEditor(id) {
       </div>
       <div class="form-group"><label>Extracto</label><textarea id="excerpt"></textarea></div>
       <div class="grid-2">
+        <div class="grid-2">
         <div class="form-group"><label>Estado</label><select id="status"><option value="draft">Borrador</option><option value="published">Publicado</option></select></div>
         <div class="form-group"><label>Tiempo de lectura</label><input type="text" id="readTime" placeholder="5"></div>
       </div>
@@ -232,6 +247,7 @@ async function renderEditor(id) {
       $('#slug').value = p.slug || '';
       $('#excerpt').value = p.excerpt || '';
       $('#status').value = p.status || 'draft';
+      $('#locale').value = p.locale || 'es';
       $('#readTime').value = (p.meta && p.meta.readTime) ? p.meta.readTime : '';
       $('#featuredImage').value = (typeof p.featuredImage === 'string' ? p.featuredImage : (p.featuredImage?.src || ''));
       const tids = p.taxonomyIds || [];
@@ -243,7 +259,14 @@ async function renderEditor(id) {
 
   // Events
   $('#back').onclick = renderDashboard;
-  $('#save').onclick = savePost;
+  $('#save').onclick = async () => {
+    const btn = $('#save');
+    btn.disabled = true;
+    btn.innerHTML = 'Guardando <span class="spinner"></span>';
+    try { await savePost(); }
+    catch(e) { showToast(e.message, 'error'); }
+    finally { btn.disabled = false; btn.innerHTML = 'Guardar'; }
+  };
   $$('[data-add]').forEach(b => b.onclick = () => addBlock(b.dataset.add));
 
   // Upload
@@ -382,6 +405,9 @@ async function savePage() {
       await api('/pages', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     }
     msg.innerHTML = '<div class="msg msg-ok">Guardado correctamente</div>';
+    hasUnsavedChanges = false;
+    const draftKey = 'cms_autosave_' + (currentPost ? currentPost._id : 'new');
+    localStorage.removeItem(draftKey);
     setTimeout(renderDashboard, 600);
   } catch(e) { msg.innerHTML = '<div class="msg msg-err">'+e.message+'</div>'; }
 }
@@ -396,8 +422,9 @@ async function savePost() {
   const status = $('#status').value;
   const readTime = parseInt($('#readTime').value, 10) || undefined;
   const featuredImage = $('#featuredImage').value.trim() || undefined;
-  const taxonomyIds = $$('#taxSelect input:checked').map(ch => ch.value);
-  const payload = { title, content: JSON.stringify(blocks), excerpt, status, taxonomyIds };
+  const taxonomyIds = $('#taxSelect input:checked').map(ch => ch.value);
+  const locale = $('#locale').value;
+  const payload = { title, content: JSON.stringify(blocks), excerpt, status, locale, taxonomyIds };
   if (slug) payload.slug = slug;
   if (readTime) payload.meta = { readTime };
   if (featuredImage) payload.featuredImage = featuredImage;

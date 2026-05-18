@@ -25,6 +25,7 @@ function getPostCollection() {
     { field: 'authorId', opts: { type: 'hash' } },
     { field: 'taxonomyIds', opts: { type: 'hash' } },
     { field: 'createdAt', opts: { type: 'sorted' } },
+    { field: 'locale', opts: { type: 'hash' } },
   ]) {
     try {
       col.createIndex(def.field, def.opts);
@@ -62,6 +63,7 @@ globalHooks.on('post.beforeInsert', async (ctx) => {
   }
 
   doc.featuredImage = doc.featuredImage || null;
+  doc.locale = doc.locale || 'es';
   
   doc.createdAt = new Date().toISOString();
   doc.updatedAt = doc.createdAt;

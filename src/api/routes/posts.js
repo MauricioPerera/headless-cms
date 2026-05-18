@@ -18,6 +18,7 @@ router.get('/', async (req, res, next) => {
     if (status) filter.status = status;
     if (authorId) filter.authorId = authorId;
     if (taxonomyId) filter.taxonomyIds = { $contains: taxonomyId };
+    if (req.query.locale) filter.locale = req.query.locale;
     if (q) {
       const safe = escapeRegex(q);
       filter.$or = [

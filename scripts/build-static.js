@@ -544,6 +544,7 @@ async function build() {
   fs.writeFileSync(path.join(DIST_DIR, 'api', 'search.json'), JSON.stringify(searchIndex, null, 2));
   console.log('  Generated JSON API + search index');
 
+  require('./build-search-index');
   console.log(`\nDone. Output: ${DIST_DIR}`);
 }
 

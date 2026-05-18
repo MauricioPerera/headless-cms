@@ -11,6 +11,7 @@ const taxonomyRoutes = require('./api/routes/taxonomies');
 const webhookRoutes = require('./api/routes/webhooks');
 const uploadRoutes = require('./api/routes/upload');
 const pageRoutes = require('./api/routes/pages');
+const searchRoutes = require('./api/routes/search');
 const { flushAll } = require('./core/store');
 
 const app = express();
@@ -43,6 +44,7 @@ app.use('/api/taxonomies', taxonomyRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/pages', pageRoutes);
+app.use('/api/search', searchRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

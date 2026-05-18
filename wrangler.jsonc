@@ -1,0 +1,11 @@
+{
+  "name": "headless-cms",
+  "compatibility_date": "2026-05-18",
+  "pages_build_output_dir": "dist",
+  "kv_namespaces": [
+    {
+      "binding": "CMS_DB",
+      "id": "6d3726d54e2a4deab24ad11f7efca2df"
+    }
+  ]
+}
