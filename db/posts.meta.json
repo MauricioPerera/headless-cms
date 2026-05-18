@@ -1,1 +1,1 @@
-{"indexes":[{"field":"slug","type":"hash","unique":true},{"field":"status","type":"hash","unique":false},{"field":"authorId","type":"hash","unique":false},{"field":"taxonomyIds","type":"hash","unique":false},{"field":"createdAt","type":"sorted","unique":false}]}
+{"indexes":[{"field":"slug","type":"hash","unique":true},{"field":"status","type":"hash","unique":false},{"field":"authorId","type":"hash","unique":false},{"field":"taxonomyIds","type":"hash","unique":false},{"field":"createdAt","type":"sorted","unique":false},{"field":"locale","type":"hash","unique":false}]}

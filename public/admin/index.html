@@ -50,24 +50,24 @@
   .tabs { display:flex; gap:.5rem; margin-bottom:1rem; border-bottom:1px solid var(--border); }
   .tab { padding:.4rem .8rem; font-size:.9rem; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
   .tab.active { border-bottom-color:var(--accent); color:var(--accent); font-weight:500; }
-
-  .toast { position: fixed; bottom: 1rem; right: 1rem; padding: .75rem 1rem; border-radius: .5rem; color: #fff; font-size: .9rem; z-index: 9999; animation: fadeIn .3s ease; }
-  .toast-success { background: #10b981; }
-  .toast-warning { background: #f59e0b; }
-  .toast-error { background: #ef4444; }
-  .toast-info { background: #3b82f6; }
-  @keyframes fadeIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
-  .offline-banner { display: none; background: #f59e0b; color: #fff; text-align: center; padding: .5rem; font-size: .85rem; }
-  .sync-status { font-size: .75rem; color: #94a3b8; margin-left: auto; }
-  button:disabled { opacity: .6; cursor: not-allowed; }
-  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-radius: 50%; border-top-color: #fff; animation: spin .8s linear infinite; margin-left: .5rem; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast { position:fixed; bottom:1rem; right:1rem; padding:.75rem 1rem; border-radius:.5rem; color:#fff; font-size:.9rem; z-index:9999; animation:fadeIn .3s ease; max-width:320px; }
+  .toast-success { background:#10b981; }
+  .toast-warning { background:#f59e0b; }
+  .toast-error { background:#ef4444; }
+  .toast-info { background:#3b82f6; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .offline-banner { display:none; background:#f59e0b; color:#fff; text-align:center; padding:.5rem; font-size:.85rem; }
+  .sync-status { font-size:.75rem; color:#94a3b8; white-space:nowrap; }
+  button:disabled { opacity:.6; cursor:not-allowed; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-radius:50%; border-top-color:#fff; animation:spin .8s linear infinite; margin-left:.35rem; vertical-align:middle; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
-<div class="offline-banner" id="offlineBanner">Sin conexion — los cambios se sincronizaran al reconectar</div>
-  <div id='toastBox' style='position:fixed;bottom:1rem;right:1rem;z-index:9999;'></div>
-  <div id="app"></div>
+<div class="offline-banner" id="offlineBanner">Sin conexion — los cambios se guardaran en cola y se sincronizaran al reconectar</div>
+<div id="toastBox" style="position:fixed;bottom:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;"></div>
+<div id="app"></div>
+
 <script>
 const API = location.origin;
 const $ = (s, el=document) => el.querySelector(s);
@@ -75,99 +75,243 @@ const $$ = (s, el=document) => Array.from(el.querySelectorAll(s));
 
 let token = localStorage.getItem('cms_token');
 let user = JSON.parse(localStorage.getItem('cms_user') || 'null');
+let hasUnsavedChanges = false;
+let autoSaveTimer = null;
 
-async function api(path, opts={}) {
-  const url = API + '/api' + path;
-  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token, ...opts.headers }, ...opts });
-  if (res.status === 401) { logout(); throw new Error('Sesion expirada'); }
-  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || 'Error ' + res.status); }
-  return res.json().catch(() => null);
+// ---------- Toast ----------
+function showToast(msg, type='success') {
+  const box = $('#toastBox');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  box.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
 }
 
-function logout() { token = null; user = null; localStorage.removeItem('cms_token'); localStorage.removeItem('cms_user'); renderLogin(); }
+// ---------- API with timeout + retry ----------
+async function api(path, opts={}) {
+  const url = API + '/api' + path;
+  const MAX_RETRIES = 3;
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        ...opts,
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          ...(opts.body && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
+          ...opts.headers,
+        },
+      });
+      clearTimeout(timer);
+      if (res.status === 401) { logout(); throw new Error('Sesion expirada'); }
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || 'Error ' + res.status);
+      }
+      return res.json().catch(() => null);
+    } catch (err) {
+      clearTimeout(timer);
+      lastErr = err.name === 'AbortError' ? new Error('Timeout: sin respuesta del servidor') : err;
+      if (lastErr.message === 'Sesion expirada') throw lastErr;
+      if (attempt === MAX_RETRIES) throw lastErr;
+      await new Promise(r => setTimeout(r, 500 * attempt));
+    }
+  }
+  throw lastErr;
+}
 
-/* Login */
+function logout() {
+  token = null; user = null;
+  localStorage.removeItem('cms_token');
+  localStorage.removeItem('cms_user');
+  stopAutoSave(); markClean();
+  renderLogin();
+}
+
+// ---------- Offline detection ----------
+const offlineBanner = document.getElementById('offlineBanner');
+window.addEventListener('offline', () => { offlineBanner.style.display = 'block'; });
+window.addEventListener('online', () => { offlineBanner.style.display = 'none'; flushOfflineQueue(); });
+
+const OFFLINE_QUEUE_KEY = 'cms_offline_queue';
+
+function enqueueOffline(entry) {
+  const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+  q.push({ ...entry, queuedAt: new Date().toISOString() });
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
+  markClean();
+  showToast('Sin conexion — guardado en cola local', 'warning');
+}
+
+async function flushOfflineQueue() {
+  const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+  if (!q.length) return;
+  showToast('Sincronizando ' + q.length + ' cambio(s) pendiente(s)...', 'info');
+  const failed = [];
+  for (const entry of q) {
+    try { await api(entry.path, entry.opts); }
+    catch { failed.push(entry); }
+  }
+  if (failed.length) {
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(failed));
+    showToast(failed.length + ' cambio(s) no sincronizados', 'error');
+  } else {
+    localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    showToast('Todos los cambios sincronizados', 'success');
+  }
+}
+
+// ---------- Auto-save ----------
+function startAutoSave(getPayload, draftKey) {
+  clearInterval(autoSaveTimer);
+  autoSaveTimer = setInterval(() => {
+    try {
+      const data = getPayload();
+      if (!data || !data.title) return;
+      localStorage.setItem(draftKey, JSON.stringify(data));
+    } catch {}
+  }, 30000);
+}
+
+function stopAutoSave() { clearInterval(autoSaveTimer); autoSaveTimer = null; }
+
+function recoverDraft(draftKey) {
+  try { return JSON.parse(localStorage.getItem(draftKey) || 'null'); }
+  catch { return null; }
+}
+
+function clearDraft(draftKey) { localStorage.removeItem(draftKey); }
+
+// ---------- Dirty tracking ----------
+function markDirty() { hasUnsavedChanges = true; }
+function markClean() { hasUnsavedChanges = false; }
+
+// ---------- Last synced ----------
+function updateLastSynced() {
+  const el = document.getElementById('lastSynced');
+  if (el) el.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ---------- Beforeunload ----------
+window.addEventListener('beforeunload', e => {
+  if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; }
+});
+
+// ---------- Login ----------
 function renderLogin(msg='') {
-  const app = $('#app');
-  app.innerHTML = `
+  stopAutoSave(); markClean();
+  $('#app').innerHTML = `
     <div class="login-box">
       <h2>Admin CMS</h2>
-      ${msg ? `<div class="msg msg-err">${msg}</div>` : ''}
-      <div class="form-group"><label>Usuario</label><input type="text" id="u"></div>
-      <div class="form-group"><label>Contrasena</label><input type="password" id="p"></div>
+      ${msg ? `<div class="msg msg-err">${escapeHtml(msg)}</div>` : ''}
+      <div class="form-group"><label>Usuario</label><input type="text" id="u" autocomplete="username"></div>
+      <div class="form-group"><label>Contrasena</label><input type="password" id="p" autocomplete="current-password"></div>
       <button class="btn btn-primary" id="btn" style="width:100%">Entrar</button>
-    </div>
-  `;
-  $('#btn').onclick = async () => {
-    const u = $('#u').value, p = $('#p').value;
+    </div>`;
+  const btn = $('#btn');
+  const doLogin = async () => {
+    const u = $('#u').value.trim(), p = $('#p').value;
+    if (!u || !p) return;
+    btn.disabled = true; btn.textContent = 'Entrando...';
     try {
-      const r = await fetch(API + '/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u, password:p}) });
+      const r = await fetch(API + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p }),
+      });
       if (!r.ok) throw new Error('Credenciales invalidas');
       const d = await r.json();
       token = d.token; user = d.user;
       localStorage.setItem('cms_token', token);
       localStorage.setItem('cms_user', JSON.stringify(user));
       renderDashboard();
-    } catch(e) { renderLogin(e.message); }
+    } catch (e) { btn.disabled = false; btn.textContent = 'Entrar'; renderLogin(e.message); }
   };
+  btn.onclick = doLogin;
+  $('#p').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 }
 
-/* Dashboard */
+// ---------- Dashboard ----------
 async function renderDashboard() {
-  const app = $('#app');
-  app.innerHTML = `<header><div class="container"><h1>Headless CMS</h1><div><span style="color:var(--muted);margin-right:.75rem">${user.displayName}</span><button class="btn btn-sm" id="new">+ Nuevo post</button><button class="btn btn-sm" id="out">Salir</button></div></div></header>
+  stopAutoSave(); markClean();
+  $('#app').innerHTML = `
+    <header>
+      <div class="container">
+        <h1>Headless CMS</h1>
+        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+          <span id="lastSynced" class="sync-status"></span>
+          <span style="color:var(--muted);font-size:.9rem">${escapeHtml(user.displayName || user.username)}</span>
+          <button class="btn btn-sm" id="new">+ Nuevo</button>
+          <button class="btn btn-sm" id="out">Salir</button>
+        </div>
+      </div>
+    </header>
     <div class="container" style="padding-top:1.5rem">
-      <div class="tabs"><div class="tab active" data-tab="posts">Posts</div><div class="tab" data-tab="pages">Paginas</div></div>
+      <div class="tabs">
+        <div class="tab active" data-tab="posts">Posts</div>
+        <div class="tab" data-tab="pages">Paginas</div>
+      </div>
       <div id="list" class="post-list"></div>
     </div>`;
   $('#new').onclick = () => {
-    const activeTab = $('.tab.active')?.dataset?.tab;
-    if (activeTab === 'pages') renderPageEditor();
-    else renderEditor();
+    const tab = $('.tab.active')?.dataset?.tab;
+    if (tab === 'pages') renderPageEditor(); else renderEditor();
   };
   $('#out').onclick = logout;
-  $$('[data-tab]').forEach(t => t.onclick = () => { $$('[data-tab]').forEach(x=>x.classList.remove('active')); t.classList.add('active'); if(t.dataset.tab==='pages') renderPageList(); else renderPostList(); });
+  $$('[data-tab]').forEach(t => t.onclick = () => {
+    $$('[data-tab]').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    if (t.dataset.tab === 'pages') renderPageList(); else renderPostList();
+  });
   renderPostList();
 }
 
-/* Editor */
+// ---------- Lists ----------
 let currentPost = null;
 let blocks = [];
 let taxonomies = [];
 
 async function renderPostList() {
   const list = $('#list');
+  list.innerHTML = '<p style="color:var(--muted)">Cargando...</p>';
   try {
-    const posts = await api('/posts?limit=50&sort=createdAt:desc');
+    const data = await api('/posts?limit=50&sort=createdAt:desc');
+    const posts = Array.isArray(data) ? data : (data.posts || []);
     if (!posts.length) { list.innerHTML = '<p style="color:var(--muted)">No hay posts.</p>'; return; }
     list.innerHTML = posts.map(p => `
-      <div class="post-item" data-id="${p._id}">
+      <div class="post-item">
         <div>
-          <div class="title">${escapeHtml(p.title)} <span class="badge ${p.status==='published'?'':'badge-draft'}">${p.status}</span></div>
-          <div class="meta">${fmtDate(p.createdAt)} ${p.meta?.readTime ? '· '+p.meta.readTime+' min' : ''}</div>
+          <div class="title">${escapeHtml(p.title)} <span class="badge ${p.status === 'published' ? '' : 'badge-draft'}">${p.status}</span>${p.locale && p.locale !== 'es' ? ' <span class="badge badge-draft">' + p.locale + '</span>' : ''}</div>
+          <div class="meta">${fmtDate(p.createdAt)}${p.meta?.readTime ? ' · ' + p.meta.readTime + ' min' : ''}</div>
         </div>
         <div style="display:flex;gap:.5rem">
           <button class="btn btn-sm" data-edit="${p._id}">Editar</button>
           <button class="btn btn-sm" data-del="${p._id}">Eliminar</button>
         </div>
-      </div>
-    `).join('');
+      </div>`).join('');
     $$('[data-edit]').forEach(b => b.onclick = () => renderEditor(b.dataset.edit));
     $$('[data-del]').forEach(b => b.onclick = async () => {
       if (!confirm('Eliminar este post?')) return;
-      await api('/posts/' + b.dataset.del, { method:'DELETE' });
+      await api('/posts/' + b.dataset.del, { method: 'DELETE' });
+      showToast('Post eliminado', 'success');
       renderPostList();
     });
-  } catch(e) { list.innerHTML = '<p class="msg msg-err">' + e.message + '</p>'; }
+  } catch (e) { list.innerHTML = '<p class="msg msg-err">' + escapeHtml(e.message) + '</p>'; }
 }
 
 async function renderPageList() {
   const list = $('#list');
+  list.innerHTML = '<p style="color:var(--muted)">Cargando...</p>';
   try {
-    const pages = await api('/pages?limit=50&sort=createdAt:desc');
+    const data = await api('/pages?limit=50&sort=createdAt:desc');
+    const pages = Array.isArray(data) ? data : (data.pages || []);
     if (!pages.length) { list.innerHTML = '<p style="color:var(--muted)">No hay paginas.</p>'; return; }
     list.innerHTML = pages.map(p => `
-      <div class="post-item" data-id="${p._id}">
+      <div class="post-item">
         <div>
           <div class="title">${escapeHtml(p.title)}</div>
           <div class="meta">${fmtDate(p.createdAt)} · /${p.slug}.html</div>
@@ -176,21 +320,33 @@ async function renderPageList() {
           <button class="btn btn-sm" data-edit-page="${p._id}">Editar</button>
           <button class="btn btn-sm" data-del-page="${p._id}">Eliminar</button>
         </div>
-      </div>
-    `).join('');
+      </div>`).join('');
     $$('[data-edit-page]').forEach(b => b.onclick = () => renderPageEditor(b.dataset.editPage));
     $$('[data-del-page]').forEach(b => b.onclick = async () => {
       if (!confirm('Eliminar esta pagina?')) return;
-      await api('/pages/' + b.dataset.delPage, { method:'DELETE' });
+      await api('/pages/' + b.dataset.delPage, { method: 'DELETE' });
+      showToast('Pagina eliminada', 'success');
       renderPageList();
     });
-  } catch(e) { list.innerHTML = '<p class="msg msg-err">' + e.message + '</p>'; }
+  } catch (e) { list.innerHTML = '<p class="msg msg-err">' + escapeHtml(e.message) + '</p>'; }
 }
 
+// ---------- Post editor ----------
 async function renderEditor(id) {
-  currentPost = null; blocks = [];
-  const app = $('#app');
-  app.innerHTML = `<header><div class="container"><h1>${id ? 'Editar' : 'Nuevo'} post</h1><div><button class="btn btn-sm" id="back">← Volver</button><button class="btn btn-primary btn-sm" id="save">Guardar</button></div></div></header>
+  currentPost = null; blocks = []; markClean();
+  const draftKey = 'cms_autosave_' + (id || 'new');
+
+  $('#app').innerHTML = `
+    <header>
+      <div class="container">
+        <h1>${id ? 'Editar' : 'Nuevo'} post</h1>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span id="lastSynced" class="sync-status"></span>
+          <button class="btn btn-sm" id="back">← Volver</button>
+          <button class="btn btn-primary btn-sm" id="save">Guardar</button>
+        </div>
+      </div>
+    </header>
     <div class="container" style="padding-top:1.5rem">
       <div class="grid-2">
         <div class="form-group"><label>Titulo</label><input type="text" id="title"></div>
@@ -199,16 +355,30 @@ async function renderEditor(id) {
       <div class="form-group"><label>Extracto</label><textarea id="excerpt"></textarea></div>
       <div class="grid-2">
         <div class="grid-2">
-        <div class="form-group"><label>Estado</label><select id="status"><option value="draft">Borrador</option><option value="published">Publicado</option></select></div>
-        <div class="form-group"><label>Tiempo de lectura</label><input type="text" id="readTime" placeholder="5"></div>
+          <div class="form-group"><label>Estado</label>
+            <select id="status">
+              <option value="draft">Borrador</option>
+              <option value="published">Publicado</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Idioma</label>
+            <select id="locale">
+              <option value="es">es</option>
+              <option value="en">en</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>Tiempo de lectura (min)</label><input type="text" id="readTime" placeholder="5"></div>
+          <div class="form-group"><label>Imagen destacada (URL)</label><input type="url" id="featuredImage" placeholder="https://..."></div>
+        </div>
       </div>
-      <div class="form-group"><label>Imagen destacada (URL)</label><input type="url" id="featuredImage" placeholder="https://..."></div>
       <div class="form-group"><label>Subir imagen</label>
         <div class="dropzone" id="dropzone">Arrastra una imagen aqui o haz click para seleccionar</div>
         <input type="file" id="fileInput" accept="image/*" style="display:none">
         <div id="uploadPreview"></div>
       </div>
-      <div class="form-group" id="taxWrap"><label>Categorias y tags</label><div class="tag-select" id="taxSelect"></div></div>
+      <div class="form-group"><label>Categorias y tags</label><div class="tag-select" id="taxSelect"></div></div>
       <div class="form-group"><label>Contenido</label>
         <div class="block-editor" id="editor"></div>
         <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
@@ -222,23 +392,23 @@ async function renderEditor(id) {
           <button class="btn btn-sm" data-add="divider">+ Divisor</button>
         </div>
       </div>
-      <div id="msg"></div>
     </div>`;
 
-  // Taxonomies
-  try { taxonomies = await api('/taxonomies?limit=100'); } catch(e){ taxonomies=[]; }
+  // Load taxonomies
+  try { const d = await api('/taxonomies?limit=100'); taxonomies = Array.isArray(d) ? d : (d.taxonomies || []); }
+  catch { taxonomies = []; }
   const taxSelect = $('#taxSelect');
-  const cats = taxonomies.filter(t=>t.type==='category');
-  const tags = taxonomies.filter(t=>t.type==='tag');
+  const cats = taxonomies.filter(t => t.type === 'category');
+  const tags = taxonomies.filter(t => t.type === 'tag');
   taxSelect.innerHTML = [
-    ...cats.map(t => `<label><input type="checkbox" value="${t._id}" data-type="category"> ${escapeHtml(t.name)}</label>`),
-    ...tags.map(t => `<label><input type="checkbox" value="${t._id}" data-type="tag"> ${escapeHtml(t.name)}</label>`)
+    ...cats.map(t => `<label><input type="checkbox" value="${t._id}"> ${escapeHtml(t.name)}</label>`),
+    ...tags.map(t => `<label><input type="checkbox" value="${t._id}"> ${escapeHtml(t.name)}</label>`),
   ].join('');
   taxSelect.querySelectorAll('input').forEach(ch => {
-    ch.onchange = () => ch.parentElement.classList.toggle('checked', ch.checked);
+    ch.onchange = () => { ch.parentElement.classList.toggle('checked', ch.checked); markDirty(); };
   });
 
-  // Load post
+  // Load existing post
   if (id) {
     try {
       const p = await api('/posts/' + id + '?withAuthor=true&withTaxonomies=true');
@@ -248,52 +418,104 @@ async function renderEditor(id) {
       $('#excerpt').value = p.excerpt || '';
       $('#status').value = p.status || 'draft';
       $('#locale').value = p.locale || 'es';
-      $('#readTime').value = (p.meta && p.meta.readTime) ? p.meta.readTime : '';
-      $('#featuredImage').value = (typeof p.featuredImage === 'string' ? p.featuredImage : (p.featuredImage?.src || ''));
+      $('#readTime').value = p.meta?.readTime || '';
+      $('#featuredImage').value = typeof p.featuredImage === 'string' ? p.featuredImage : (p.featuredImage?.src || '');
       const tids = p.taxonomyIds || [];
-      taxSelect.querySelectorAll('input').forEach(ch => { ch.checked = tids.includes(ch.value); ch.parentElement.classList.toggle('checked', ch.checked); });
-      try { blocks = typeof p.content === 'string' ? JSON.parse(p.content) : (p.content || []); } catch(e){ blocks=[]; }
-    } catch(e){ $('#msg').innerHTML = '<div class="msg msg-err">'+e.message+'</div>'; }
+      taxSelect.querySelectorAll('input').forEach(ch => {
+        ch.checked = tids.includes(ch.value);
+        ch.parentElement.classList.toggle('checked', ch.checked);
+      });
+      try { blocks = typeof p.content === 'string' ? JSON.parse(p.content) : (p.content || []); }
+      catch { blocks = []; }
+    } catch (e) { showToast(e.message, 'error'); }
   }
+
+  // Recover draft if newer than saved post
+  const draft = recoverDraft(draftKey);
+  if (draft?.title && draft?.savedAt) {
+    const draftDate = new Date(draft.savedAt);
+    const postDate = currentPost ? new Date(currentPost.updatedAt) : null;
+    if (!postDate || draftDate > postDate) {
+      if (confirm('Hay un borrador auto-guardado (' + fmtDate(draft.savedAt) + '). ¿Restaurarlo?')) {
+        $('#title').value = draft.title || '';
+        if (draft.excerpt !== undefined) $('#excerpt').value = draft.excerpt;
+        if (draft.status) $('#status').value = draft.status;
+        if (draft.locale) $('#locale').value = draft.locale;
+        blocks = draft.blocks || blocks;
+        markDirty();
+      }
+    }
+  }
+
   renderBlocks();
 
-  // Events
-  $('#back').onclick = renderDashboard;
+  // Mark dirty on field changes
+  ['title', 'slug', 'excerpt', 'status', 'locale', 'readTime', 'featuredImage'].forEach(fid => {
+    $('#' + fid)?.addEventListener('input', markDirty);
+    $('#' + fid)?.addEventListener('change', markDirty);
+  });
+
+  // Auto-save every 30s
+  startAutoSave(() => ({
+    title: $('#title')?.value?.trim(),
+    excerpt: $('#excerpt')?.value?.trim(),
+    status: $('#status')?.value,
+    locale: $('#locale')?.value,
+    blocks: [...blocks],
+    savedAt: new Date().toISOString(),
+  }), draftKey);
+
+  // Navigation guard
+  $('#back').onclick = () => {
+    if (hasUnsavedChanges && !confirm('Tienes cambios sin guardar. ¿Salir de todas formas?')) return;
+    stopAutoSave(); markClean(); renderDashboard();
+  };
+
+  // Save button
   $('#save').onclick = async () => {
     const btn = $('#save');
     btn.disabled = true;
-    btn.innerHTML = 'Guardando <span class="spinner"></span>';
-    try { await savePost(); }
-    catch(e) { showToast(e.message, 'error'); }
+    btn.innerHTML = 'Guardando<span class="spinner"></span>';
+    try { await savePost(draftKey); }
+    catch (e) { showToast(e.message, 'error'); }
     finally { btn.disabled = false; btn.innerHTML = 'Guardar'; }
   };
+
   $$('[data-add]').forEach(b => b.onclick = () => addBlock(b.dataset.add));
 
-  // Upload
+  // Image upload
   const dropzone = $('#dropzone');
   const fileInput = $('#fileInput');
   dropzone.onclick = () => fileInput.click();
   fileInput.onchange = () => { if (fileInput.files[0]) uploadFile(fileInput.files[0]); };
   dropzone.ondragover = e => { e.preventDefault(); dropzone.classList.add('dragover'); };
   dropzone.ondragleave = () => dropzone.classList.remove('dragover');
-  dropzone.ondrop = e => { e.preventDefault(); dropzone.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) uploadFile(f); };
+  dropzone.ondrop = e => {
+    e.preventDefault(); dropzone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0]; if (f) uploadFile(f);
+  };
 }
 
+// ---------- Blocks ----------
 function renderBlocks() {
   const editor = $('#editor');
-  if (!blocks.length) { editor.innerHTML = '<p style="color:var(--muted)">Sin bloques. Agrega contenido arriba.</p>'; return; }
-  editor.innerHTML = blocks.map((b,i) => `
+  if (!editor) return;
+  if (!blocks.length) {
+    editor.innerHTML = '<p style="color:var(--muted)">Sin bloques. Agrega contenido arriba.</p>';
+    return;
+  }
+  editor.innerHTML = blocks.map((b, i) => `
     <div class="block" data-i="${i}">
       <div class="block-header">
         <select onchange="changeType(${i}, this.value)">
-          <option value="paragraph" ${b.type==='paragraph'?'selected':''}>Parrafo</option>
-          <option value="heading" ${b.type==='heading'?'selected':''}>H2</option>
-          <option value="heading3" ${b.type==='heading3'?'selected':''}>H3</option>
-          <option value="image" ${b.type==='image'?'selected':''}>Imagen</option>
-          <option value="code" ${b.type==='code'?'selected':''}>Code</option>
-          <option value="quote" ${b.type==='quote'?'selected':''}>Cita</option>
-          <option value="list" ${b.type==='list'?'selected':''}>Lista</option>
-          <option value="divider" ${b.type==='divider'?'selected':''}>Divisor</option>
+          <option value="paragraph" ${b.type === 'paragraph' ? 'selected' : ''}>Parrafo</option>
+          <option value="heading" ${b.type === 'heading' ? 'selected' : ''}>H2</option>
+          <option value="heading3" ${b.type === 'heading3' ? 'selected' : ''}>H3</option>
+          <option value="image" ${b.type === 'image' ? 'selected' : ''}>Imagen</option>
+          <option value="code" ${b.type === 'code' ? 'selected' : ''}>Code</option>
+          <option value="quote" ${b.type === 'quote' ? 'selected' : ''}>Cita</option>
+          <option value="list" ${b.type === 'list' ? 'selected' : ''}>Lista</option>
+          <option value="divider" ${b.type === 'divider' ? 'selected' : ''}>Divisor</option>
         </select>
         <div class="block-actions">
           <button class="btn btn-sm" onclick="moveBlock(${i},-1)">↑</button>
@@ -301,57 +523,102 @@ function renderBlocks() {
           <button class="btn btn-sm" onclick="removeBlock(${i})">×</button>
         </div>
       </div>
-      ${blockFields(b,i)}
-    </div>
-  `).join('');
+      ${blockFields(b, i)}
+    </div>`).join('');
 }
 
-function blockFields(b,i) {
-  switch(b.type) {
-    case 'paragraph': return `<textarea oninput="blocks[${i}].text=this.value" placeholder="Texto...">${escapeHtml(b.text||'')}</textarea>`;
-    case 'heading': return `<input type="text" oninput="blocks[${i}].text=this.value" placeholder="Titulo..." value="${escapeHtml(b.text||'')}">`;
-    case 'heading3': return `<input type="text" oninput="blocks[${i}].text=this.value" placeholder="Subtitulo..." value="${escapeHtml(b.text||'')}">`;
-    case 'image': return `<input type="url" oninput="blocks[${i}].src=this.value" placeholder="URL imagen..." value="${escapeHtml(b.src||'')}"><input type="text" oninput="blocks[${i}].alt=this.value" placeholder="Alt text..." value="${escapeHtml(b.alt||'')}">`;
-    case 'code': return `<textarea oninput="blocks[${i}].text=this.value" placeholder="Codigo...">${escapeHtml(b.text||'')}</textarea>`;
-    case 'quote': return `<textarea oninput="blocks[${i}].text=this.value" placeholder="Cita...">${escapeHtml(b.text||'')}</textarea>`;
-    case 'list': return `<label style="font-size:.8rem"><input type="checkbox" ${b.ordered?'checked':''} onchange="blocks[${i}].ordered=this.checked"> Ordenada</label><textarea oninput="blocks[${i}].items=this.value.split('\\n')" placeholder="Items (uno por linea)...">${escapeHtml((b.items||[]).join('\\n'))}</textarea>`;
-    case 'divider': return '<em style="color:var(--muted)">Divisor horizontal</em>';
-    default: return '';
+function blockFields(b, i) {
+  switch (b.type) {
+    case 'paragraph':
+      return `<textarea oninput="blocks[${i}].text=this.value;markDirty()" placeholder="Texto...">${escapeHtml(b.text || '')}</textarea>`;
+    case 'heading':
+      return `<input type="text" oninput="blocks[${i}].text=this.value;markDirty()" placeholder="Titulo H2..." value="${escapeHtml(b.text || '')}">`;
+    case 'heading3':
+      return `<input type="text" oninput="blocks[${i}].text=this.value;markDirty()" placeholder="Subtitulo H3..." value="${escapeHtml(b.text || '')}">`;
+    case 'image':
+      return `<input type="url" oninput="blocks[${i}].src=this.value;markDirty()" placeholder="URL imagen..." value="${escapeHtml(b.src || '')}">
+              <input type="text" oninput="blocks[${i}].alt=this.value;markDirty()" placeholder="Alt text..." value="${escapeHtml(b.alt || '')}" style="margin-top:.4rem">`;
+    case 'code':
+      return `<textarea oninput="blocks[${i}].text=this.value;markDirty()" placeholder="Codigo..." style="font-family:monospace">${escapeHtml(b.text || '')}</textarea>`;
+    case 'quote':
+      return `<textarea oninput="blocks[${i}].text=this.value;markDirty()" placeholder="Cita...">${escapeHtml(b.text || '')}</textarea>`;
+    case 'list':
+      return `<label style="font-size:.8rem;display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem">
+                <input type="checkbox" ${b.ordered ? 'checked' : ''} onchange="blocks[${i}].ordered=this.checked;markDirty()"> Ordenada
+              </label>
+              <textarea oninput="blocks[${i}].items=this.value.split('\\n');markDirty()" placeholder="Items (uno por linea)...">${escapeHtml((b.items || []).join('\n'))}</textarea>`;
+    case 'divider':
+      return '<em style="color:var(--muted);font-size:.85rem">Divisor horizontal</em>';
+    default:
+      return '';
   }
 }
 
 function addBlock(type) {
   const base = { type };
-  if (type === 'paragraph') base.text = '';
-  if (type === 'heading' || type === 'heading3') base.text = '';
-  if (type === 'image') base.src = ''; base.alt = '';
-  if (type === 'code' || type === 'quote') base.text = '';
-  if (type === 'list') base.items = []; base.ordered = false;
+  if (['paragraph', 'heading', 'heading3', 'code', 'quote'].includes(type)) base.text = '';
+  if (type === 'image') { base.src = ''; base.alt = ''; }
+  if (type === 'list') { base.items = []; base.ordered = false; }
   blocks.push(base);
+  markDirty();
   renderBlocks();
 }
-function changeType(i, type) { blocks[i] = { type }; if (type !== 'divider') blocks[i].text = ''; renderBlocks(); }
-function moveBlock(i, dir) { const j = i+dir; if (j<0 || j>=blocks.length) return; [blocks[i], blocks[j]] = [blocks[j], blocks[i]]; renderBlocks(); }
-function removeBlock(i) { blocks.splice(i,1); renderBlocks(); }
 
+function changeType(i, type) {
+  blocks[i] = { type };
+  if (type !== 'divider') blocks[i].text = '';
+  markDirty(); renderBlocks();
+}
+
+function moveBlock(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= blocks.length) return;
+  [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
+  markDirty(); renderBlocks();
+}
+
+function removeBlock(i) {
+  blocks.splice(i, 1);
+  markDirty(); renderBlocks();
+}
+
+// ---------- Upload ----------
 async function uploadFile(file) {
   const preview = $('#uploadPreview');
+  if (!preview) return;
   preview.innerHTML = '<p style="color:var(--muted)">Subiendo...</p>';
   const form = new FormData();
   form.append('image', file);
   try {
-    const r = await fetch(API + '/api/upload', { method:'POST', headers:{ 'Authorization':'Bearer '+token }, body: form });
+    const r = await fetch(API + '/api/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: form,
+    });
     if (!r.ok) throw new Error('Error al subir');
     const d = await r.json();
-    $('#featuredImage').value = d.url;
+    if ($('#featuredImage')) $('#featuredImage').value = d.url;
     preview.innerHTML = `<img class="image-preview" src="${d.url}" alt="preview">`;
-  } catch(e) { preview.innerHTML = '<p class="msg msg-err">'+e.message+'</p>'; }
+    markDirty();
+  } catch (e) { preview.innerHTML = '<p class="msg msg-err">' + escapeHtml(e.message) + '</p>'; }
 }
 
+// ---------- Page editor ----------
 async function renderPageEditor(id) {
-  currentPost = null; blocks = [];
-  const app = $('#app');
-  app.innerHTML = `<header><div class="container"><h1>${id ? 'Editar' : 'Nueva'} pagina</h1><div><button class="btn btn-sm" id="back">← Volver</button><button class="btn btn-primary btn-sm" id="save">Guardar</button></div></div></header>
+  currentPost = null; blocks = []; markClean();
+  const draftKey = 'cms_autosave_page_' + (id || 'new');
+
+  $('#app').innerHTML = `
+    <header>
+      <div class="container">
+        <h1>${id ? 'Editar' : 'Nueva'} pagina</h1>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span id="lastSynced" class="sync-status"></span>
+          <button class="btn btn-sm" id="back">← Volver</button>
+          <button class="btn btn-primary btn-sm" id="save">Guardar</button>
+        </div>
+      </div>
+    </header>
     <div class="container" style="padding-top:1.5rem">
       <div class="grid-2">
         <div class="form-group"><label>Titulo</label><input type="text" id="title"></div>
@@ -371,8 +638,8 @@ async function renderPageEditor(id) {
           <button class="btn btn-sm" data-add="divider">+ Divisor</button>
         </div>
       </div>
-      <div id="msg"></div>
     </div>`;
+
   if (id) {
     try {
       const p = await api('/pages/' + id);
@@ -380,69 +647,122 @@ async function renderPageEditor(id) {
       $('#title').value = p.title || '';
       $('#slug').value = p.slug || '';
       $('#excerpt').value = p.excerpt || '';
-      try { blocks = typeof p.content === 'string' ? JSON.parse(p.content) : (p.content || []); } catch(e){ blocks=[]; }
-    } catch(e){ $('#msg').innerHTML = '<div class="msg msg-err">'+e.message+'</div>'; }
+      try { blocks = typeof p.content === 'string' ? JSON.parse(p.content) : (p.content || []); }
+      catch { blocks = []; }
+    } catch (e) { showToast(e.message, 'error'); }
   }
+
+  const draft = recoverDraft(draftKey);
+  if (draft?.title && draft?.savedAt) {
+    const draftDate = new Date(draft.savedAt);
+    const pageDate = currentPost ? new Date(currentPost.updatedAt) : null;
+    if (!pageDate || draftDate > pageDate) {
+      if (confirm('Hay un borrador auto-guardado. ¿Restaurarlo?')) {
+        $('#title').value = draft.title || '';
+        if (draft.excerpt !== undefined) $('#excerpt').value = draft.excerpt;
+        blocks = draft.blocks || blocks;
+        markDirty();
+      }
+    }
+  }
+
   renderBlocks();
-  $('#back').onclick = renderDashboard;
-  $('#save').onclick = savePage;
+
+  ['title', 'slug', 'excerpt'].forEach(fid => {
+    $('#' + fid)?.addEventListener('input', markDirty);
+  });
+
+  startAutoSave(() => ({
+    title: $('#title')?.value?.trim(),
+    excerpt: $('#excerpt')?.value?.trim(),
+    blocks: [...blocks],
+    savedAt: new Date().toISOString(),
+  }), draftKey);
+
+  $('#back').onclick = () => {
+    if (hasUnsavedChanges && !confirm('Tienes cambios sin guardar. ¿Salir de todas formas?')) return;
+    stopAutoSave(); markClean(); renderDashboard();
+  };
+  $('#save').onclick = async () => {
+    const btn = $('#save');
+    btn.disabled = true;
+    btn.innerHTML = 'Guardando<span class="spinner"></span>';
+    try { await savePage(draftKey); }
+    catch (e) { showToast(e.message, 'error'); }
+    finally { btn.disabled = false; btn.innerHTML = 'Guardar'; }
+  };
   $$('[data-add]').forEach(b => b.onclick = () => addBlock(b.dataset.add));
 }
 
-async function savePage() {
-  const msg = $('#msg');
-  msg.innerHTML = '';
+// ---------- Save ----------
+async function savePage(draftKey) {
   const title = $('#title').value.trim();
-  if (!title) { msg.innerHTML = '<div class="msg msg-err">Titulo requerido</div>'; return; }
+  if (!title) { showToast('Titulo requerido', 'error'); return; }
   const slug = $('#slug').value.trim() || undefined;
   const excerpt = $('#excerpt').value.trim();
   const payload = { title, content: JSON.stringify(blocks), excerpt };
   if (slug) payload.slug = slug;
-  try {
-    if (currentPost) {
-      await api('/pages/' + currentPost._id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    } else {
-      await api('/pages', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    }
-    msg.innerHTML = '<div class="msg msg-ok">Guardado correctamente</div>';
-    hasUnsavedChanges = false;
-    const draftKey = 'cms_autosave_' + (currentPost ? currentPost._id : 'new');
-    localStorage.removeItem(draftKey);
-    setTimeout(renderDashboard, 600);
-  } catch(e) { msg.innerHTML = '<div class="msg msg-err">'+e.message+'</div>'; }
+
+  const path = currentPost ? '/pages/' + currentPost._id : '/pages';
+  const method = currentPost ? 'PATCH' : 'POST';
+
+  if (!navigator.onLine) {
+    enqueueOffline({ path, opts: { method, body: JSON.stringify(payload) } });
+    return;
+  }
+
+  await api(path, { method, body: JSON.stringify(payload) });
+  markClean();
+  clearDraft(draftKey);
+  updateLastSynced();
+  showToast('Pagina guardada', 'success');
+  stopAutoSave();
+  setTimeout(renderDashboard, 700);
 }
 
-async function savePost() {
-  const msg = $('#msg');
-  msg.innerHTML = '';
+async function savePost(draftKey) {
   const title = $('#title').value.trim();
-  if (!title) { msg.innerHTML = '<div class="msg msg-err">Titulo requerido</div>'; return; }
+  if (!title) { showToast('Titulo requerido', 'error'); return; }
   const slug = $('#slug').value.trim() || undefined;
   const excerpt = $('#excerpt').value.trim();
   const status = $('#status').value;
+  const locale = $('#locale').value;
   const readTime = parseInt($('#readTime').value, 10) || undefined;
   const featuredImage = $('#featuredImage').value.trim() || undefined;
-  const taxonomyIds = $('#taxSelect input:checked').map(ch => ch.value);
-  const locale = $('#locale').value;
+  const taxonomyIds = $$('#taxSelect input:checked').map(ch => ch.value);
   const payload = { title, content: JSON.stringify(blocks), excerpt, status, locale, taxonomyIds };
   if (slug) payload.slug = slug;
   if (readTime) payload.meta = { readTime };
   if (featuredImage) payload.featuredImage = featuredImage;
-  try {
-    if (currentPost) {
-      await api('/posts/' + currentPost._id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    } else {
-      await api('/posts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    }
-    msg.innerHTML = '<div class="msg msg-ok">Guardado correctamente</div>';
-    setTimeout(renderDashboard, 600);
-  } catch(e) { msg.innerHTML = '<div class="msg msg-err">'+e.message+'</div>'; }
+
+  const path = currentPost ? '/posts/' + currentPost._id : '/posts';
+  const method = currentPost ? 'PATCH' : 'POST';
+
+  if (!navigator.onLine) {
+    enqueueOffline({ path, opts: { method, body: JSON.stringify(payload) } });
+    return;
+  }
+
+  await api(path, { method, body: JSON.stringify(payload) });
+  markClean();
+  clearDraft(draftKey);
+  updateLastSynced();
+  showToast('Post guardado', 'success');
+  stopAutoSave();
+  setTimeout(renderDashboard, 700);
 }
 
-function escapeHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function fmtDate(iso) { if(!iso) return ''; const d=new Date(iso); return d.toLocaleDateString('es-MX',{year:'numeric',month:'short',day:'numeric'}); }
+// ---------- Helpers ----------
+function escapeHtml(t) {
+  return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function fmtDate(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }); }
+  catch { return iso; }
+}
 
-// Init
+// ---------- Init ----------
 if (token && user) renderDashboard(); else renderLogin();
 </script>
 </body>

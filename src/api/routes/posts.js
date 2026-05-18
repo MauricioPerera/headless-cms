@@ -5,6 +5,7 @@ const {
   createPost, updatePost, findPostById, findPostBySlug,
   listPosts, countPosts, removePostById
 } = require('../../models/post');
+const { invalidateIndex } = require('../../core/search');
 
 // Escapa caracteres especiales de regex para evitar ReDoS
 function escapeRegex(text) {
@@ -58,6 +59,7 @@ router.post('/', requireAuth, async (req, res, next) => {
   try {
     const doc = { ...req.body, authorId: req.user._id };
     const post = await createPost(doc);
+    invalidateIndex();
     res.status(201).json(post);
   } catch (err) { next(err); }
 });
@@ -70,6 +72,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
       return res.status(403).json({ error: 'forbidden' });
     }
     await updatePost({ _id: req.params.id }, { $set: req.body });
+    invalidateIndex();
     const updated = findPostById(req.params.id);
     res.json(updated);
   } catch (err) { next(err); }
@@ -83,6 +86,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
       return res.status(403).json({ error: 'forbidden' });
     }
     removePostById(req.params.id);
+    invalidateIndex();
     res.status(204).send();
   } catch (err) { next(err); }
 });

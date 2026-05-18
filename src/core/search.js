@@ -138,9 +138,22 @@ function buildIndexFromStore() {
   return buildIndex(posts);
 }
 
+let _cachedIndex = null;
+
+function getOrBuildIndex() {
+  if (!_cachedIndex) _cachedIndex = buildIndexFromStore();
+  return _cachedIndex;
+}
+
+function invalidateIndex() {
+  _cachedIndex = null;
+}
+
 module.exports = {
   tokenize,
   buildIndex,
   search,
   buildIndexFromStore,
+  getOrBuildIndex,
+  invalidateIndex,
 };

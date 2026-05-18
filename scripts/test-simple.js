@@ -245,6 +245,99 @@ async function runTests() {
     ok('Webhooks: delete');
   } catch (e) { fail('Webhooks: delete', e); }
 
+  // Search (TF-IDF)
+  // Seed a published post with identifiable content
+  let searchPostId;
+  try {
+    const { status, data } = await request('POST', '/api/posts', {
+      token: adminToken,
+      body: {
+        title: 'Introduccion a Cloudflare Workers',
+        content: JSON.stringify([{ type: 'paragraph', text: 'Cloudflare Workers ejecuta JavaScript en el edge de la red.' }]),
+        excerpt: 'Aprende sobre Cloudflare Workers y edge computing.',
+        status: 'published',
+        locale: 'es',
+      },
+    });
+    await assertEqual(status, 201, 'search seed post');
+    searchPostId = data._id;
+    ok('Search: seed post for testing');
+  } catch (e) { fail('Search: seed post for testing', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/search?q=cloudflare');
+    await assertEqual(status, 200, 'search status');
+    if (typeof data.results === 'undefined') throw new Error('results missing');
+    if (typeof data.total !== 'number') throw new Error('total missing');
+    if (data.total < 1) throw new Error('expected at least 1 result for "cloudflare"');
+    if (!data.results[0].title) throw new Error('result missing title');
+    ok('Search: returns results for known term');
+  } catch (e) { fail('Search: returns results for known term', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/search?q=xyzzyquux999');
+    await assertEqual(status, 200, 'search no-match status');
+    await assertEqual(data.total, 0, 'no results for unknown term');
+    ok('Search: returns empty for unknown term');
+  } catch (e) { fail('Search: returns empty for unknown term', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/search?q=');
+    await assertEqual(status, 200, 'search empty query');
+    if (typeof data.results === 'undefined') throw new Error('results missing');
+    ok('Search: handles empty query');
+  } catch (e) { fail('Search: handles empty query', e); }
+
+  // Search index invalidation
+  try {
+    // Update the post title to something new
+    await request('PATCH', `/api/posts/${searchPostId}`, {
+      token: adminToken,
+      body: { title: 'Edge Computing con Vercel' },
+    });
+    // Search for new term — index must have been invalidated
+    const { data } = await request('GET', '/api/search?q=vercel');
+    if (data.total < 1) throw new Error('index not invalidated after update');
+    ok('Search: index invalidated after PATCH');
+  } catch (e) { fail('Search: index invalidated after PATCH', e); }
+
+  try {
+    // Delete the search post and verify index updates
+    await request('DELETE', `/api/posts/${searchPostId}`, { token: adminToken });
+    const { data } = await request('GET', '/api/search?q=vercel');
+    if (data.total > 0) throw new Error('deleted post still appears in search');
+    ok('Search: index invalidated after DELETE');
+  } catch (e) { fail('Search: index invalidated after DELETE', e); }
+
+  // Locale filtering
+  let enPostId;
+  try {
+    const { status, data } = await request('POST', '/api/posts', {
+      token: adminToken,
+      body: { title: 'English Post', content: JSON.stringify([]), status: 'published', locale: 'en' },
+    });
+    await assertEqual(status, 201, 'en post create');
+    enPostId = data._id;
+    ok('Locale: create post with locale=en');
+  } catch (e) { fail('Locale: create post with locale=en', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/posts?locale=en');
+    await assertEqual(status, 200, 'locale filter status');
+    if (!Array.isArray(data.posts)) throw new Error('posts not array');
+    if (!data.posts.every(p => p.locale === 'en')) throw new Error('non-en posts returned');
+    if (data.posts.length < 1) throw new Error('no en posts returned');
+    ok('Locale: ?locale=en filters correctly');
+  } catch (e) { fail('Locale: ?locale=en filters correctly', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/posts?locale=es');
+    await assertEqual(status, 200, 'locale es status');
+    if (!Array.isArray(data.posts)) throw new Error('posts not array');
+    if (data.posts.some(p => p.locale === 'en')) throw new Error('en post leaked into es results');
+    ok('Locale: ?locale=es excludes en posts');
+  } catch (e) { fail('Locale: ?locale=es excludes en posts', e); }
+
   // Report
   console.log('\n--- RESULTS ---');
   const passed = results.filter(r => r.status === 'PASS').length;
