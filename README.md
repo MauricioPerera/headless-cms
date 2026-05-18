@@ -266,108 +266,25 @@ Los usuarios pueden tener `avatar` (URL de imagen) y `bio` (texto corto):
 
 El generador estatico muestra una **author card** al final de cada post con foto, nombre y biografia.
 
-## Deploy automatico
+## Deploy a Cloudflare Pages
 
-### GitHub Pages (via GitHub Actions)
+### Requisito
 
-1. En tu repo: **Settings > Pages > Source: GitHub Actions**
-2. En **Settings > Secrets and variables > Actions** agrega:
-   - **Secret**: JWT_SECRET — string largo aleatorio (32+ caracteres)
-   - **Variables**: SITE_URL, BASE_PATH, SITE_OG_IMAGE, POSTS_PER_PAGE
+Wrangler autenticado localmente:
+`ash
+npx wrangler login   # una sola vez
+`
 
-| Tipo de repo | SITE_URL | BASE_PATH |
-|--------------|------------|-------------|
-| **Usuario**  | https://tuusuario.github.io/ | / |
-| **Proyecto** | https://tuusuario.github.io/nombre-repo/ | /nombre-repo/ |
+### Deploy
 
-3. Push a master. El workflow en .github/workflows/deploy.yml hace build y deploy automatico.
+`ash
+npm run build
+npm run deploy:cloudflare
+`
 
-### Cloudflare Pages (conexion nativa a GitHub)
+Eso es todo. Cloudflare Pages recibe los archivos estaticos de dist/ y los sirve desde su CDN global.
 
-1. Ve a [dash.cloudflare.com/pages](https://dash.cloudflare.com/pages)
-2. **Create a project > Connect to Git**
-3. Selecciona tu repo y autoriza
-4. Configura:
-   - **Build command**: 
-pm run build
-   - **Build output directory**: dist
-5. Guarda. Cloudflare Pages hace build y deploy en cada push a master.
-
-**No necesitas tokens ni scripts en el workflow.** La conexion es nativa entre GitHub y Cloudflare.
-
-## Paso 1: Configurar GitHub Pages
-
-En tu repo de GitHub: **Settings > Pages > Source: GitHub Actions**
-
-### Paso 2: Configurar variables y secretos en GitHub
-
-En **Settings > Secrets and variables > Actions**:
-
-**Secrets**:
-- `JWT_SECRET`: string largo aleatorio (32+ caracteres)
-- `CLOUDFLARE_API_TOKEN`: token de API de Cloudflare (opcional, solo si quieres deploy a Cloudflare)
-
-**Variables**:
-- `SITE_URL`: URL completa del sitio
-- `BASE_PATH`: path del repo (ej. `/headless-cms/`)
-- `SITE_OG_IMAGE`: URL de imagen por defecto para Open Graph (opcional)
-- `POSTS_PER_PAGE`: numero de posts por pagina (default: 5, opcional)
-
-| Tipo de repo | Ejemplo de repo | `SITE_URL` | `BASE_PATH` |
-|--------------|-----------------|------------|-------------|
-| **Usuario** | `mauricioperera.github.io` | `https://mauricioperera.github.io/` | `/` |
-| **Proyecto** | `headless-cms` | `https://mauricioperera.github.io/headless-cms/` | `/headless-cms/` |
-
-Si tu repo es de **proyecto** (cualquier nombre distinto a tu usuario), usa `BASE_PATH=/nombre-del-repo/` y `SITE_URL=https://tuusuario.github.io/nombre-del-repo/`.
-
-Si tu repo se llama exactamente como tu usuario (`tuusuario.github.io`), usa `BASE_PATH=/` y `SITE_URL=https://tuusuario.github.io/`.
-
-**Sin estas variables, los feeds RSS y los links internos apuntaran a una URL de ejemplo y estaran rotos.**
-
-### Paso 3: Crear Cloudflare API Token (opcional)
-
-Si quieres deploy a Cloudflare Pages:
-
-1. Ve a [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
-2. Clic en **Create Token**
-3. Usa la plantilla **"Custom token"**
-4. Configuracion:
-   - **Token name**: `GitHub Actions Headless CMS`
-   - **Permissions**:
-     - `Cloudflare Pages:Edit`
-     - `Account:Read`
-   - **Account Resources**: Include your account
-   - **Zone Resources**: None
-5. Copia el token y agregalo como secret `CLOUDFLARE_API_TOKEN` en GitHub
-
-Si omites este paso, el deploy a GitHub Pages seguira funcionando. El deploy a Cloudflare simplemente se saltara.
-
-### Paso 4: Hacer push
-
-```bash
-git init
-git add .
-git commit -m "Headless CMS con contenido persistente"
-git branch -M master
-git remote add origin https://github.com/TU_USUARIO/TU_REPO.git
-git push -u origin master
-```
-
-Cada push a `master` ejecuta automaticamente:
-1. `npm ci`
-2. `npm run build` (sobre la `db/` que commiteaste)
-3. Despliegue a **GitHub Pages**
-4. Despliegue a **Cloudflare Pages** (si `CLOUDFLARE_API_TOKEN` existe)
-
-Puedes ver el progreso en la pestana **Actions** de tu repositorio.
-
-**El workflow NO ejecuta `npm run seed`**. Esto garantiza que tu contenido no se sobrescriba en cada deploy.
-
-### URLs de deploy
-
-Despues del primer deploy:
-- **GitHub Pages**: `https://TU_USUARIO.github.io/TU_REPO/`
-- **Cloudflare Pages**: `https://headless-cms-XXXX.pages.dev/` (el proyecto se crea automaticamente)
+**URL del sitio**: https://headless-cms-cj8.pages.dev (se actualiza con cada deploy)
 
 ## Flujo de trabajo con persistencia
 
