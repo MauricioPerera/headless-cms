@@ -78,37 +78,6 @@ dist/
     app.js                # Busqueda + toggle de tema
 ```
 
-## Flujo de trabajo con persistencia
-
-Para un blog real, la base de datos `db/` **se incluye en el repositorio**. Esto significa que tu contenido persiste entre builds y deploys.
-
-### Crear contenido localmente
-
-```bash
-npm run seed        # solo la primera vez para datos iniciales
-npm start           # levanta la API REST en localhost:3000
-# Usa Postman, curl, o un frontend para crear/editar posts
-```
-
-Cada cambio que hagas via API se guarda automaticamente en `db/`. Cuando termines:
-
-```bash
-git add db/
-git commit -m "Nuevos posts y taxonomias"
-git push origin main
-```
-
-El workflow de GitHub Actions detectara el push, ejecutara `npm run build` sobre tu `db/` commiteada, y desplegara el sitio actualizado.
-
-### Si no tienes db/ commiteada
-
-Si clonas el repo en otra maquina y no hay `db/`:
-
-```bash
-npm run seed        # regenera contenido demo
-# O restaura db/ desde un backup
-```
-
 ## Bloques de contenido soportados
 
 El campo `content` de un post es un array JSON de bloques:
@@ -140,18 +109,26 @@ El sitio estatico incluye un toggle de tema en la barra de navegacion. Detecta l
 1. Ve a **Settings → Pages** en tu repositorio de GitHub.
 2. En **Source**, selecciona **GitHub Actions**.
 
-### Paso 2: Configurar variables del sitio (opcional)
+### Paso 2: Configurar Secrets y Variables de Actions
 
-Ve a **Settings → Secrets and variables → Actions → Variables** y agrega:
+Antes de hacer push, configura los siguientes valores en **Settings → Secrets and variables → Actions**.
 
-| Variable | Ejemplo | Descripcion |
-|----------|---------|-------------|
-| `SITE_NAME` | Mi Blog Headless | Titulo del sitio |
-| `SITE_DESCRIPTION` | Blog sobre desarrollo | Meta descripcion |
-| `SITE_URL` | `https://miusuario.github.io/mi-blog/` | URL completa |
-| `BASE_PATH` | `/mi-blog/` | Path si el repo es un proyecto |
+#### Secrets (valores sensibles)
 
-Si tu repositorio se llama `miusuario.github.io` (usuario/organizacion), usa `BASE_PATH=/` y `SITE_URL=https://miusuario.github.io/`.
+| Secret | Requerido | Descripcion |
+|--------|-----------|-------------|
+| `JWT_SECRET` | Si usas la API REST | Clave para firmar tokens JWT (minimo 32 caracteres aleatorios). **No se usa en el build estatico**, pero es obligatoria si ejecutas la API en el servidor. |
+
+#### Variables (no sensibles)
+
+| Variable | Requerido | Ejemplo | Descripcion |
+|----------|-----------|---------|-------------|
+| `SITE_NAME` | Opcional | `Mi Blog Headless` | Titulo del sitio |
+| `SITE_DESCRIPTION` | Opcional | `Blog sobre desarrollo` | Meta descripcion |
+| `SITE_URL` | **Si** | `https://miusuario.github.io/mi-blog/` | URL completa del sitio. **Importante**: sin esta variable, los links de RSS y sitemap apuntaran a una URL de ejemplo. |
+| `BASE_PATH` | **Si** | `/mi-blog/` | Path relativo si el repo es un proyecto. Si tu repo se llama `miusuario.github.io` (usuario), usa `/`. |
+
+**Nota sobre SITE_URL y BASE_PATH**: el workflow tiene valores de ejemplo por defecto (`https://miusuario.github.io/mi-blog/` y `/mi-blog/`). Si no configuras tus variables reales, los feeds RSS y los links internos estaran rotos.
 
 ### Paso 3: Hacer push
 
@@ -172,6 +149,37 @@ Cada push a `main` ejecuta automaticamente:
 Puedes ver el progreso en la pestana **Actions** de tu repositorio.
 
 **El workflow NO ejecuta `npm run seed`**. Esto garantiza que tu contenido no se sobrescriba en cada deploy.
+
+## Flujo de trabajo con persistencia
+
+Para un blog real, la base de datos `db/` **se incluye en el repositorio**. Esto significa que tu contenido persiste entre builds y deploys.
+
+### Crear contenido localmente
+
+```bash
+npm run seed        # solo la primera vez para datos iniciales
+npm start           # levanta la API REST en localhost:3000
+# Usa Postman, curl, o un frontend para crear/editar posts
+```
+
+Cada cambio que hagas via API se guarda automaticamente en `db/`. Cuando termines:
+
+```bash
+git add db/
+git commit -m "Nuevos posts y taxonomias"
+git push origin main
+```
+
+El workflow de GitHub Actions detectara el push, ejecutara `npm run build` sobre tu `db/` commiteada, y desplegara el sitio actualizado.
+
+### Si no tienes db/ commiteada
+
+Si clonas el repo en otra maquina y no hay `db/`:
+
+```bash
+npm run seed        # regenera contenido demo
+# O restaura db/ desde un backup
+```
 
 ## Deploy en otras plataformas
 
@@ -220,6 +228,16 @@ npm test
 
 20 tests: health, auth, posts, taxonomias, usuarios, permisos.
 
+## Actualizar js-doc-store
+
+Si la libreria original se actualiza:
+
+```bash
+npm run update:jsdocstore
+```
+
+Esto descarga la version mas reciente desde GitHub y la coloca en `lib/js-doc-store.js`.
+
 ## Arquitectura
 
 ```
@@ -253,6 +271,10 @@ scripts/
   serve-static.js # Servidor de preview
   test-simple.js  # Bateria de pruebas
 ```
+
+## Changelog
+
+Ver [CHANGELOG.md](CHANGELOG.md).
 
 ## Problemas de WordPress que se evitan
 
