@@ -268,12 +268,34 @@ El generador estatico muestra una **author card** al final de cada post con foto
 
 ## Deploy automatico
 
-El workflow de CI/CD despliega a **dos destinos simultaneamente** en cada push a `master`:
+### GitHub Pages (via GitHub Actions)
 
-1. **GitHub Pages** (gratuito, incluido en el repo)
-2. **Cloudflare Pages** (gratuito, CDN global mas rapido)
+1. En tu repo: **Settings > Pages > Source: GitHub Actions**
+2. En **Settings > Secrets and variables > Actions** agrega:
+   - **Secret**: JWT_SECRET — string largo aleatorio (32+ caracteres)
+   - **Variables**: SITE_URL, BASE_PATH, SITE_OG_IMAGE, POSTS_PER_PAGE
 
-### Paso 1: Configurar GitHub Pages
+| Tipo de repo | SITE_URL | BASE_PATH |
+|--------------|------------|-------------|
+| **Usuario**  | https://tuusuario.github.io/ | / |
+| **Proyecto** | https://tuusuario.github.io/nombre-repo/ | /nombre-repo/ |
+
+3. Push a master. El workflow en .github/workflows/deploy.yml hace build y deploy automatico.
+
+### Cloudflare Pages (conexion nativa a GitHub)
+
+1. Ve a [dash.cloudflare.com/pages](https://dash.cloudflare.com/pages)
+2. **Create a project > Connect to Git**
+3. Selecciona tu repo y autoriza
+4. Configura:
+   - **Build command**: 
+pm run build
+   - **Build output directory**: dist
+5. Guarda. Cloudflare Pages hace build y deploy en cada push a master.
+
+**No necesitas tokens ni scripts en el workflow.** La conexion es nativa entre GitHub y Cloudflare.
+
+## Paso 1: Configurar GitHub Pages
 
 En tu repo de GitHub: **Settings > Pages > Source: GitHub Actions**
 
