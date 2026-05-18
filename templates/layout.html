@@ -34,6 +34,9 @@
       <a class="site-title" href="{{basePath}}">{{siteName}}</a>
       <nav class="site-nav">
         <a href="{{basePath}}">Inicio</a>
+        {{#pages}}
+        <a href="{{basePath}}{{slug}}.html">{{title}}</a>
+        {{/pages}}
         <a href="{{basePath}}categories/">Categorias</a>
         <a href="{{basePath}}tags/">Tags</a>
         <input type="search" id="site-search" placeholder="Buscar..." class="search-input">

@@ -5,6 +5,7 @@ process.chdir(path.resolve(__dirname, '..'));
 
 const { createUser } = require('../src/models/user');
 const { createPost } = require('../src/models/post');
+const { createPage } = require('../src/models/page');
 const { createTaxonomy } = require('../src/models/taxonomy');
 const { flushAll } = require('../src/core/store');
 
@@ -46,6 +47,32 @@ async function seed() {
   const tagVite = await createTaxonomy({ name: 'Vite', type: 'tag' });
 
   console.log('Taxonomias creadas');
+  // Paginas estaticas
+  await createPage({
+    title: 'Acerca de',
+    slug: 'acerca-de',
+    content: JSON.stringify([
+      { type: 'paragraph', text: 'Este blog es un experimento vivo: un CMS headless construido desde cero con Node.js, js-doc-store como base de datos documental JSON, y un generador de sitios estaticos sin dependencias pesadas.' },
+      { type: 'heading', text: 'Por que abandonar WordPress' },
+      { type: 'paragraph', text: 'Despues de 12 anos usando WordPress para todo, decidi construir mi propio sistema. No por rebeldia, sino por necesidad: el modelo de datos de WordPress data de 2003, y no escala bien para contenido moderno.' },
+      { type: 'heading', text: 'Stack tecnico' },
+      { type: 'list', items: ['Node.js + Express para la API REST', 'js-doc-store como DB documental JSON', 'Generador de sitios estaticos propio', 'GitHub Pages para hosting gratuito', 'JWT + bcrypt para autenticacion'] },
+      { type: 'paragraph', text: 'Todo el codigo es open source y esta disponible en GitHub.' }
+    ]),
+    excerpt: 'Sobre este blog, su stack tecnico, y por que existe.',
+  });
+  await createPage({
+    title: 'Contacto',
+    slug: 'contacto',
+    content: JSON.stringify([
+      { type: 'paragraph', text: 'Puedes encontrarme en las siguientes plataformas:' },
+      { type: 'list', items: ['GitHub: @MauricioPerera', 'Twitter: @mauricioperera', 'Email: mauricio@example.com'] },
+      { type: 'paragraph', text: 'Para consultas sobre desarrollo, arquitectura de software, o colaboraciones en proyectos open source, no dudes en escribir.' }
+    ]),
+    excerpt: 'Formas de contactar al autor de este blog.',
+  });
+  console.log('Paginas: Acerca de, Contacto');
+
 
   // Post 1
   await createPost({

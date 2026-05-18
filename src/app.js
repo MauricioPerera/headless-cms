@@ -10,6 +10,7 @@ const userRoutes = require('./api/routes/users');
 const taxonomyRoutes = require('./api/routes/taxonomies');
 const webhookRoutes = require('./api/routes/webhooks');
 const uploadRoutes = require('./api/routes/upload');
+const pageRoutes = require('./api/routes/pages');
 const { flushAll } = require('./core/store');
 
 const app = express();
@@ -41,6 +42,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/taxonomies', taxonomyRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/pages', pageRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -60,5 +62,7 @@ if (require.main === module) {
 }
 
 module.exports = app;
+
+
 
 

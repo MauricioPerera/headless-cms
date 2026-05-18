@@ -22,6 +22,7 @@ const store = new DocStore(new FileStorageAdapter(DB_DIR));
 const postsCol = store.collection('posts');
 const usersCol = store.collection('users');
 const taxCol = store.collection('taxonomies');
+const pagesCol = store.collection('pages');
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -176,6 +177,7 @@ async function build() {
   const publishedPosts = postsCol.find({ status: 'published' }).sort('publishedAt', -1).toArray();
   const allUsers = usersCol.find({}).toArray();
   const allTaxonomies = taxCol.find({}).toArray();
+  const allPages = pagesCol.find({}).sort('createdAt', -1).toArray();
 
   const userMap = new Map(allUsers.map(u => [u._id, u]));
   const taxMap = new Map(allTaxonomies.map(t => [t._id, t]));
@@ -201,6 +203,7 @@ async function build() {
   });
 
   const layoutTpl = loadTemplate('layout.html');
+  const pageTpl = loadTemplate('page.html');
   const postTpl = loadTemplate('post.html');
   const indexTpl = loadTemplate('index.html');
   const taxonomyTpl = loadTemplate('taxonomy.html');
@@ -218,6 +221,7 @@ async function build() {
       siteName: CONFIG.siteName,
       basePath: CONFIG.basePath,
       content: postHtml,
+      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
       canonicalUrl,
       ogTitle: post.title,
       ogDescription: post.excerpt,
@@ -252,6 +256,7 @@ async function build() {
       siteName: CONFIG.siteName,
       basePath: CONFIG.basePath,
       content: pageHtml,
+      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
       canonicalUrl: page === 1 ? CONFIG.siteUrl : CONFIG.siteUrl + 'page/' + page + '.html',
       ogTitle: CONFIG.siteName,
       ogDescription: CONFIG.siteDescription,
@@ -292,6 +297,7 @@ async function build() {
       siteName: CONFIG.siteName,
       basePath: CONFIG.basePath,
       content: taxHtml,
+      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
       canonicalUrl: taxCanonical,
       ogTitle: tax.name,
       ogDescription: tax.description || `Posts en ${tax.name}`,
@@ -310,6 +316,7 @@ async function build() {
     \u003c/div\u003e\u003c/section\u003e`;
   writeFile(path.join(DIST_DIR, 'categories', 'index.html'), render(layoutTpl, {
     title: 'Categorias', description: 'Todas las categorias', siteName: CONFIG.siteName, basePath: CONFIG.basePath, content: catsListHtml,
+    pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
     canonicalUrl: CONFIG.siteUrl + 'categories/',
     ogTitle: 'Categorias',
     ogDescription: 'Todas las categorias',
@@ -323,6 +330,7 @@ async function build() {
     \u003c/div\u003e\u003c/section\u003e`;
   writeFile(path.join(DIST_DIR, 'tags', 'index.html'), render(layoutTpl, {
     title: 'Tags', description: 'Todos los tags', siteName: CONFIG.siteName, basePath: CONFIG.basePath, content: tagsListHtml,
+    pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
     canonicalUrl: CONFIG.siteUrl + 'tags/',
     ogTitle: 'Tags',
     ogDescription: 'Todos los tags',
@@ -330,6 +338,26 @@ async function build() {
     ogType: 'website',
   }));
   console.log('  Generated taxonomy index pages');
+  // Pages
+  for (const page of allPages) {
+    const pageHtml = render(pageTpl, { ...page, basePath: CONFIG.basePath, content: renderContent(page.content) });
+    const pageCanonical = CONFIG.siteUrl + page.slug + '.html';
+    const fullHtml = render(layoutTpl, {
+      title: page.title,
+      description: page.excerpt || page.title,
+      siteName: CONFIG.siteName,
+      basePath: CONFIG.basePath,
+      content: pageHtml,
+      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
+      canonicalUrl: pageCanonical,
+      ogTitle: page.title,
+      ogDescription: page.excerpt || page.title,
+      ogImage: CONFIG.siteOgImage || pageCanonical,
+      ogType: 'website',
+    });
+    writeFile(path.join(DIST_DIR, `${page.slug}.html`), fullHtml);
+  }
+  console.log(`  Generated ${allPages.length} page pages`);
 
   // RSS global
   const rssXml = render(rssTpl, {
