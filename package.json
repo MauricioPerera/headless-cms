@@ -1,0 +1,21 @@
+{
+  "name": "headless-cms",
+  "version": "1.0.0",
+  "description": "CMS headless basado en js-doc-store, evitando problemas arquitectonicos de WordPress",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "seed": "node scripts/seed.js",
+    "test": "node scripts/test-simple.js",
+    "build": "node scripts/build-static.js",
+    "serve": "node scripts/serve-static.js",
+    "update:jsdocstore": "curl -o lib/js-doc-store.js https://raw.githubusercontent.com/MauricioPerera/js-doc-store/master/js-doc-store.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

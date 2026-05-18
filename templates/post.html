@@ -1,0 +1,26 @@
+<article class="post">
+  <header class="post-header">
+    <h1>{{title}}</h1>
+    <div class="post-meta">
+      <time datetime="{{publishedAt}}">{{publishedDate}}</time>
+      {{#author}}
+      <span class="author">por {{displayName}}</span>
+      {{/author}}
+      <span class="read-time">{{readTime}} min lectura</span>
+    </div>
+    {{#categories}}
+    <div class="post-tags">
+      <a class="tag category" href="{{basePath}}categories/{{slug}}.html">{{name}}</a>
+    </div>
+    {{/categories}}
+    {{#tags}}
+    <div class="post-tags">
+      <a class="tag" href="{{basePath}}tags/{{slug}}.html">{{name}}</a>
+    </div>
+    {{/tags}}
+  </header>
+
+  <div class="post-content">
+    {{content}}
+  </div>
+</article>

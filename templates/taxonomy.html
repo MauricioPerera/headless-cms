@@ -1,0 +1,16 @@
+<section class="taxonomy-page">
+  <h1>{{taxonomyName}} — {{taxonomyType}}</h1>
+  <p class="taxonomy-desc">{{taxonomyDescription}}</p>
+
+  <div class="post-list">
+    {{#posts}}
+    <article class="post-card">
+      <h2><a href="{{basePath}}posts/{{slug}}.html">{{title}}</a></h2>
+      <p class="excerpt">{{excerpt}}</p>
+      <div class="post-meta">
+        <time datetime="{{publishedAt}}">{{publishedDate}}</time>
+      </div>
+    </article>
+    {{/posts}}
+  </div>
+</section>

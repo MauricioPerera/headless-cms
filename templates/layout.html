@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}} | {{siteName}}</title>
+  <meta name="description" content="{{description}}">
+  <link rel="stylesheet" href="{{basePath}}assets/style.css">
+  <link rel="alternate" type="application/rss+xml" title="{{siteName}}" href="{{basePath}}feed.xml">
+  <script>
+    (function() {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.classList.add('theme-dark');
+      }
+    })();
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="site-title" href="{{basePath}}">{{siteName}}</a>
+      <nav class="site-nav">
+        <a href="{{basePath}}">Inicio</a>
+        <a href="{{basePath}}categories/">Categorias</a>
+        <a href="{{basePath}}tags/">Tags</a>
+        <input type="search" id="site-search" placeholder="Buscar..." class="search-input">
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+          <span id="theme-icon"></span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {{content}}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>{{siteName}} — Generado con Headless CMS</p>
+    </div>
+  </footer>
+
+  <script src="{{basePath}}assets/app.js"></script>
+</body>
+</html>

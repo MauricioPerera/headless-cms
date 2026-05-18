@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>{{siteUrl}}</loc>
+    <lastmod>{{buildDate}}</lastmod>
+    <priority>1.0</priority>
+  </url>
+  {{#posts}}
+  <url>
+    <loc>{{siteUrl}}posts/{{slug}}.html</loc>
+    <lastmod>{{updatedAt}}</lastmod>
+    <priority>0.8</priority>
+  </url>
+  {{/posts}}
+  {{#taxonomies}}
+  <url>
+    <loc>{{siteUrl}}{{type}}s/{{slug}}.html</loc>
+    <lastmod>{{buildDate}}</lastmod>
+    <priority>0.6</priority>
+  </url>
+  {{/taxonomies}}
+</urlset>

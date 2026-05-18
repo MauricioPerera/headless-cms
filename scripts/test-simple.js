@@ -1,0 +1,230 @@
+process.env.JWT_SECRET = 'test-secret-for-ci-only';
+
+const app = require('../src/app');
+const { createUser, findUserByUsername } = require('../src/models/user');
+const { createTaxonomy } = require('../src/models/taxonomy');
+const { createPost } = require('../src/models/post');
+const { signToken } = require('../src/core/auth');
+
+let server;
+let baseUrl;
+let adminToken;
+let authorToken;
+
+const results = [];
+
+function ok(name) { results.push({ name, status: 'PASS' }); }
+function fail(name, err) { results.push({ name, status: 'FAIL', error: err.message }); console.error(`  FAIL: ${name} => ${err.message}`); }
+
+async function request(method, path, { body, token } = {}) {
+  const url = `${baseUrl}${path}`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  let data = null;
+  const text = await res.text();
+  if (text) data = JSON.parse(text);
+  return { status: res.status, data };
+}
+
+async function assertEqual(actual, expected, msg) {
+  if (actual !== expected) throw new Error(`${msg || 'assertion'}: expected ${expected}, got ${actual}`);
+}
+
+async function runTests() {
+  console.log('Cleaning DB...');
+  const fs = require('fs');
+  const path = require('path');
+  const dbDir = path.resolve(__dirname, '../db');
+  if (fs.existsSync(dbDir)) fs.rmSync(dbDir, { recursive: true, force: true });
+
+  console.log('Starting test server...');
+  await new Promise((resolve) => {
+    server = app.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      baseUrl = `http://127.0.0.1:${port}`;
+      resolve();
+    });
+  });
+
+  // Seed users directamente
+  const adminUser = await createUser({ username: 'admin2', email: 'admin2@example.com', password: 'admin123', displayName: 'Admin', role: 'admin' });
+  adminToken = signToken({ _id: adminUser._id, username: adminUser.username, role: adminUser.role });
+
+  const authorUser = await createUser({ username: 'author2', email: 'author2@example.com', password: 'author123', displayName: 'Author', role: 'author' });
+  authorToken = signToken({ _id: authorUser._id, username: authorUser.username, role: authorUser.role });
+
+  console.log('Running tests...\n');
+
+  // Health
+  try {
+    const { status, data } = await request('GET', '/api/health');
+    await assertEqual(status, 200, 'health status');
+    await assertEqual(data.status, 'ok', 'health body');
+    ok('Health check');
+  } catch (e) { fail('Health check', e); }
+
+  // Auth
+  try {
+    const { status, data } = await request('POST', '/api/auth/register', {
+      body: { username: 'testuser', email: 'test@example.com', password: 'secret123', displayName: 'Test' }
+    });
+    await assertEqual(status, 201, 'register status');
+    await assertEqual(data.user.username, 'testuser', 'register username');
+    ok('Auth: register');
+  } catch (e) { fail('Auth: register', e); }
+
+  try {
+    const { status, data } = await request('POST', '/api/auth/login', { body: { username: 'testuser', password: 'secret123' } });
+    await assertEqual(status, 200, 'login status');
+    await assertEqual(data.user.username, 'testuser', 'login username');
+    ok('Auth: login');
+  } catch (e) { fail('Auth: login', e); }
+
+  try {
+    const { status, data } = await request('POST', '/api/auth/login', { body: { username: 'testuser', password: 'wrong' } });
+    await assertEqual(status, 401, 'bad login status');
+    ok('Auth: bad login');
+  } catch (e) { fail('Auth: bad login', e); }
+
+  try {
+    const { status } = await request('POST', '/api/auth/register', { body: { username: 'testuser', email: 'test@example.com', password: 'x' } });
+    if (status !== 400 && status !== 409) throw new Error(`expected 400/409, got ${status}`);
+    ok('Auth: duplicate registration');
+  } catch (e) { fail('Auth: duplicate registration', e); }
+
+  // Posts
+  let postId;
+  try {
+    const { status, data } = await request('POST', '/api/posts', {
+      token: adminToken,
+      body: { title: 'Hello World', content: JSON.stringify([{ type: 'paragraph', text: 'First' }]), status: 'published', excerpt: 'excerpt' }
+    });
+    await assertEqual(status, 201, 'create post');
+    postId = data._id;
+    ok('Posts: create as admin');
+  } catch (e) { fail('Posts: create as admin', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/posts?status=published');
+    await assertEqual(status, 200, 'list posts');
+    if (!Array.isArray(data.posts)) throw new Error('posts is not array');
+    if (data.posts.length < 1) throw new Error('posts empty');
+    ok('Posts: list published');
+  } catch (e) { fail('Posts: list published', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/posts/hello-world');
+    await assertEqual(status, 200, 'get by slug');
+    await assertEqual(data.title, 'Hello World', 'slug title');
+    ok('Posts: get by slug');
+  } catch (e) { fail('Posts: get by slug', e); }
+
+  try {
+    const { status, data } = await request('GET', `/api/posts/${postId}?withAuthor=1`);
+    await assertEqual(status, 200, 'get by id');
+    if (!data.author) throw new Error('author missing');
+    if (data.author.passwordHash) throw new Error('passwordHash leaked');
+    ok('Posts: get by id with author');
+  } catch (e) { fail('Posts: get by id with author', e); }
+
+  try {
+    const { status, data } = await request('PATCH', `/api/posts/${postId}`, { token: adminToken, body: { title: 'Updated' } });
+    await assertEqual(status, 200, 'patch post');
+    await assertEqual(data.title, 'Updated', 'updated title');
+    ok('Posts: update as author');
+  } catch (e) { fail('Posts: update as author', e); }
+
+  try {
+    const { status } = await request('POST', '/api/posts', { body: { title: 'Hack' } });
+    await assertEqual(status, 401, 'unauth create');
+    ok('Posts: reject unauth create');
+  } catch (e) { fail('Posts: reject unauth create', e); }
+
+  try {
+    const create = await request('POST', '/api/posts', { token: adminToken, body: { title: 'ToDelete', content: '' } });
+    const { status } = await request('DELETE', `/api/posts/${create.data._id}`, { token: adminToken });
+    await assertEqual(status, 204, 'delete post');
+    ok('Posts: delete');
+  } catch (e) { fail('Posts: delete', e); }
+
+  // Taxonomies
+  let taxId;
+  try {
+    const { status, data } = await request('POST', '/api/taxonomies', {
+      token: adminToken,
+      body: { name: 'Software', type: 'category', description: 'Cat' }
+    });
+    await assertEqual(status, 201, 'create category');
+    taxId = data._id;
+    ok('Taxonomies: create category');
+  } catch (e) { fail('Taxonomies: create category', e); }
+
+  try {
+    const { status, data } = await request('POST', '/api/taxonomies', {
+      token: adminToken,
+      body: { name: 'Node.js', type: 'tag' }
+    });
+    await assertEqual(status, 201, 'create tag');
+    ok('Taxonomies: create tag');
+  } catch (e) { fail('Taxonomies: create tag', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/taxonomies?type=category');
+    await assertEqual(status, 200, 'list categories');
+    if (!data.taxonomies.every(t => t.type === 'category')) throw new Error('mixed types');
+    ok('Taxonomies: list categories');
+  } catch (e) { fail('Taxonomies: list categories', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/taxonomies/software');
+    await assertEqual(status, 200, 'get by slug');
+    await assertEqual(data.name, 'Software', 'taxonomy name');
+    ok('Taxonomies: get by slug');
+  } catch (e) { fail('Taxonomies: get by slug', e); }
+
+  try {
+    const { status, data } = await request('PATCH', `/api/taxonomies/${taxId}`, { token: adminToken, body: { description: 'Updated' } });
+    await assertEqual(status, 200, 'patch taxonomy');
+    await assertEqual(data.description, 'Updated', 'updated desc');
+    ok('Taxonomies: update');
+  } catch (e) { fail('Taxonomies: update', e); }
+
+  // Users
+  try {
+    const { status, data } = await request('GET', '/api/users', { token: adminToken });
+    await assertEqual(status, 200, 'list users');
+    if (!Array.isArray(data.users)) throw new Error('users not array');
+    if (data.users.some(u => u.passwordHash)) throw new Error('passwordHash leaked');
+    ok('Users: list as admin');
+  } catch (e) { fail('Users: list as admin', e); }
+
+  try {
+    const { status } = await request('GET', '/api/users', { token: authorToken });
+    await assertEqual(status, 403, 'list as author');
+    ok('Users: reject author list');
+  } catch (e) { fail('Users: reject author list', e); }
+
+  try {
+    const { status, data } = await request('GET', '/api/users/me', { token: adminToken });
+    await assertEqual(status, 200, 'me status');
+    await assertEqual(data.username, 'admin2', 'me username');
+    if (data.passwordHash) throw new Error('passwordHash leaked in me');
+    ok('Users: get me');
+  } catch (e) { fail('Users: get me', e); }
+
+  // Report
+  console.log('\n--- RESULTS ---');
+  const passed = results.filter(r => r.status === 'PASS').length;
+  const failed = results.filter(r => r.status === 'FAIL').length;
+  results.forEach(r => console.log(`[${r.status}] ${r.name}`));
+  console.log(`\nTotal: ${results.length} | Passed: ${passed} | Failed: ${failed}`);
+
+  await new Promise((resolve) => server.close(resolve));
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+runTests().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

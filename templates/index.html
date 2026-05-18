@@ -1,0 +1,27 @@
+<section class="hero">
+  <h1>{{siteName}}</h1>
+  <p class="lead">{{siteDescription}}</p>
+</section>
+
+<section class="post-list">
+  {{#posts}}
+  <article class="post-card">
+    <h2><a href="{{basePath}}posts/{{slug}}.html">{{title}}</a></h2>
+    <p class="excerpt">{{excerpt}}</p>
+    <div class="post-meta">
+      <time datetime="{{publishedAt}}">{{publishedDate}}</time>
+      <span class="read-time">{{readTime}} min</span>
+    </div>
+    {{#categories}}
+    <div class="post-tags">
+      <a class="tag category" href="{{basePath}}categories/{{slug}}.html">{{name}}</a>
+    </div>
+    {{/categories}}
+    {{#tags}}
+    <div class="post-tags">
+      <a class="tag" href="{{basePath}}tags/{{slug}}.html">{{name}}</a>
+    </div>
+    {{/tags}}
+  </article>
+  {{/posts}}
+</section>
