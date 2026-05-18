@@ -47,6 +47,9 @@
   .tag-select label { display:flex; align-items:center; gap:.25rem; font-size:.85rem; font-weight:400; color:var(--text); cursor:pointer; padding:.25rem .5rem; border:1px solid var(--border); border-radius:var(--radius); }
   .tag-select input { accent-color:var(--accent); }
   .tag-select label.checked { border-color:var(--accent); background:rgba(37,99,235,.08); }
+  .tabs { display:flex; gap:.5rem; margin-bottom:1rem; border-bottom:1px solid var(--border); }
+  .tab { padding:.4rem .8rem; font-size:.9rem; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tab.active { border-bottom-color:var(--accent); color:var(--accent); font-weight:500; }
 </style>
 </head>
 <body>
@@ -99,12 +102,29 @@ function renderLogin(msg='') {
 async function renderDashboard() {
   const app = $('#app');
   app.innerHTML = \`<header><div class="container"><h1>Headless CMS</h1><div><span style="color:var(--muted);margin-right:.75rem">\${user.displayName}</span><button class="btn btn-sm" id="new">+ Nuevo post</button><button class="btn btn-sm" id="out">Salir</button></div></div></header>
-    <div class="container" style="padding-top:1.5rem"><div id="list" class="post-list"></div></div>\`;
-  $('#new').onclick = () => renderEditor();
+    <div class="container" style="padding-top:1.5rem">
+      <div class="tabs"><div class="tab active" data-tab="posts">Posts</div><div class="tab" data-tab="pages">Paginas</div></div>
+      <div id="list" class="post-list"></div>
+    </div>\`;
+  $('#new').onclick = () => {
+    const activeTab = $('.tab.active')?.dataset?.tab;
+    if (activeTab === 'pages') renderPageEditor();
+    else renderEditor();
+  };
   $('#out').onclick = logout;
+  $$('[data-tab]').forEach(t => t.onclick = () => { $$('[data-tab]').forEach(x=>x.classList.remove('active')); t.classList.add('active'); if(t.dataset.tab==='pages') renderPageList(); else renderPostList(); });
+  renderPostList();
+}
+
+/* Editor */
+let currentPost = null;
+let blocks = [];
+let taxonomies = [];
+
+async function renderPostList() {
+  const list = $('#list');
   try {
     const posts = await api('/posts?limit=50&sort=createdAt:desc');
-    const list = $('#list');
     if (!posts.length) { list.innerHTML = '<p style="color:var(--muted)">No hay posts.</p>'; return; }
     list.innerHTML = posts.map(p => \`
       <div class="post-item" data-id="\${p._id}">
@@ -122,15 +142,36 @@ async function renderDashboard() {
     $$('[data-del]').forEach(b => b.onclick = async () => {
       if (!confirm('Eliminar este post?')) return;
       await api('/posts/' + b.dataset.del, { method:'DELETE' });
-      renderDashboard();
+      renderPostList();
     });
   } catch(e) { list.innerHTML = '<p class="msg msg-err">' + e.message + '</p>'; }
 }
 
-/* Editor */
-let currentPost = null;
-let blocks = [];
-let taxonomies = [];
+async function renderPageList() {
+  const list = $('#list');
+  try {
+    const pages = await api('/pages?limit=50&sort=createdAt:desc');
+    if (!pages.length) { list.innerHTML = '<p style="color:var(--muted)">No hay paginas.</p>'; return; }
+    list.innerHTML = pages.map(p => \`
+      <div class="post-item" data-id="\${p._id}">
+        <div>
+          <div class="title">\${escapeHtml(p.title)}</div>
+          <div class="meta">\${fmtDate(p.createdAt)} · /\${p.slug}.html</div>
+        </div>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn btn-sm" data-edit-page="\${p._id}">Editar</button>
+          <button class="btn btn-sm" data-del-page="\${p._id}">Eliminar</button>
+        </div>
+      </div>
+    \`).join('');
+    $$('[data-edit-page]').forEach(b => b.onclick = () => renderPageEditor(b.dataset.editPage));
+    $$('[data-del-page]').forEach(b => b.onclick = async () => {
+      if (!confirm('Eliminar esta pagina?')) return;
+      await api('/pages/' + b.dataset.delPage, { method:'DELETE' });
+      renderPageList();
+    });
+  } catch(e) { list.innerHTML = '<p class="msg msg-err">' + e.message + '</p>'; }
+}
 
 async function renderEditor(id) {
   currentPost = null; blocks = [];
@@ -282,6 +323,67 @@ async function uploadFile(file) {
     $('#featuredImage').value = d.url;
     preview.innerHTML = \`<img class="image-preview" src="\${d.url}" alt="preview">\`;
   } catch(e) { preview.innerHTML = '<p class="msg msg-err">'+e.message+'</p>'; }
+}
+
+async function renderPageEditor(id) {
+  currentPost = null; blocks = [];
+  const app = $('#app');
+  app.innerHTML = \`<header><div class="container"><h1>\${id ? 'Editar' : 'Nueva'} pagina</h1><div><button class="btn btn-sm" id="back">← Volver</button><button class="btn btn-primary btn-sm" id="save">Guardar</button></div></div></header>
+    <div class="container" style="padding-top:1.5rem">
+      <div class="grid-2">
+        <div class="form-group"><label>Titulo</label><input type="text" id="title"></div>
+        <div class="form-group"><label>Slug</label><input type="text" id="slug" placeholder="auto"></div>
+      </div>
+      <div class="form-group"><label>Extracto</label><textarea id="excerpt"></textarea></div>
+      <div class="form-group"><label>Contenido</label>
+        <div class="block-editor" id="editor"></div>
+        <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn-sm" data-add="paragraph">+ Parrafo</button>
+          <button class="btn btn-sm" data-add="heading">+ H2</button>
+          <button class="btn btn-sm" data-add="heading3">+ H3</button>
+          <button class="btn btn-sm" data-add="image">+ Imagen</button>
+          <button class="btn btn-sm" data-add="code">+ Code</button>
+          <button class="btn btn-sm" data-add="quote">+ Cita</button>
+          <button class="btn btn-sm" data-add="list">+ Lista</button>
+          <button class="btn btn-sm" data-add="divider">+ Divisor</button>
+        </div>
+      </div>
+      <div id="msg"></div>
+    </div>\`;
+  if (id) {
+    try {
+      const p = await api('/pages/' + id);
+      currentPost = p;
+      $('#title').value = p.title || '';
+      $('#slug').value = p.slug || '';
+      $('#excerpt').value = p.excerpt || '';
+      try { blocks = typeof p.content === 'string' ? JSON.parse(p.content) : (p.content || []); } catch(e){ blocks=[]; }
+    } catch(e){ $('#msg').innerHTML = '<div class="msg msg-err">'+e.message+'</div>'; }
+  }
+  renderBlocks();
+  $('#back').onclick = renderDashboard;
+  $('#save').onclick = savePage;
+  $$('[data-add]').forEach(b => b.onclick = () => addBlock(b.dataset.add));
+}
+
+async function savePage() {
+  const msg = $('#msg');
+  msg.innerHTML = '';
+  const title = $('#title').value.trim();
+  if (!title) { msg.innerHTML = '<div class="msg msg-err">Titulo requerido</div>'; return; }
+  const slug = $('#slug').value.trim() || undefined;
+  const excerpt = $('#excerpt').value.trim();
+  const payload = { title, content: JSON.stringify(blocks), excerpt };
+  if (slug) payload.slug = slug;
+  try {
+    if (currentPost) {
+      await api('/pages/' + currentPost._id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    } else {
+      await api('/pages', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    }
+    msg.innerHTML = '<div class="msg msg-ok">Guardado correctamente</div>';
+    setTimeout(renderDashboard, 600);
+  } catch(e) { msg.innerHTML = '<div class="msg msg-err">'+e.message+'</div>'; }
 }
 
 async function savePost() {
