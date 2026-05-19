@@ -1,1 +1,0 @@
-{"indexes":[{"field":"slug","type":"hash","unique":true},{"field":"createdAt","type":"sorted","unique":false}]}

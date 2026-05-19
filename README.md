@@ -12,15 +12,18 @@ CMS minimalista basado en [js-doc-store](https://github.com/MauricioPerera/js-do
 - **Indices**: hash y sorted sobre campos clave.
 - **Seguridad**: sin SQL injection, bcrypt, validacion en hooks, rate limiting, CORS configurable.
 - **Generador estatico**: HTML, RSS, sitemap, JSON API estatica, busqueda client-side.
+- **Busqueda TF-IDF**: indice de similitud coseno con cache invalidable; mismo algoritmo portado al edge de Cloudflare.
+- **Internacionalizacion**: campo `locale` en posts y filtro `?locale=` en la API; hreflang correcto en el SSG.
 - **Theme oscuro**: toggle manual + deteccion de preferencia del sistema.
-- **SEO completo**: Open Graph, Twitter Cards, Schema.org JSON-LD, breadcrumbs.
+- **SEO completo**: Open Graph, Twitter Cards, Schema.org JSON-LD, breadcrumbs, hreflang.
 - **Paginacion**: index paginado con navegacion anterior/siguiente.
 - **Imagenes**: featured images, imagenes inline en bloques, subida via API con multer.
 - **Multi-autor**: avatar y bio por usuario, author card en posts.
 - **Deploy automatico**: GitHub Actions a GitHub Pages en cada push a `master`.
 - **Persistencia real**: la base de datos `db/` se commitea en el repo, no se regenera en CI.
-- **Editor web**: panel administrativo en `http://localhost:3000/admin` para crear/editar posts y paginas.
+- **Editor web**: panel administrativo en `http://localhost:3000/admin`; cola offline, auto-guardado y guard de navegacion.
 - **Webhooks**: notificacion real a endpoints externos cuando un post se publica.
+- **Migracion desde Sanity**: importa exports JSON de Sanity (autores, categorias, tags, posts con Portable Text). Ver [MIGRATION.md](MIGRATION.md).
 
 ## Modos de uso
 
@@ -357,13 +360,35 @@ O `vercel.json`:
 }
 ```
 
+## Busqueda TF-IDF
+
+La busqueda usa similitud coseno con IDF suavizado y stop-words en espanol.
+
+```
+GET /api/search?q=cloudflare&limit=5
+```
+
+El indice se construye una vez y se cachea en memoria (`getOrBuildIndex`). Se invalida automaticamente cada vez que se crea, actualiza o elimina un post, garantizando resultados frescos sin reconstruir en cada peticion.
+
+En el deploy de Cloudflare Pages (`functions/_worker.js`), el mismo algoritmo corre directamente en el edge sobre datos leidos desde KV.
+
+## Locale / Internacionalizacion
+
+Los posts tienen un campo opcional `locale` (default `es`). La API acepta el filtro `?locale=es` o `?locale=en` para separar contenido por idioma:
+
+```
+GET /api/posts?locale=en
+```
+
+El generador estatico incluye etiquetas `hreflang` correctas en cada pagina.
+
 ## Pruebas
 
 ```bash
 npm test
 ```
 
-24 tests: health, auth, posts, paginas, taxonomias, usuarios, webhooks, permisos.
+33 tests: health, auth, posts, paginas, taxonomias, usuarios, webhooks, permisos, busqueda TF-IDF, invalidacion de indice, filtrado por locale.
 
 ## Actualizar js-doc-store
 
@@ -383,6 +408,7 @@ src/
     store.js      # DocStore + FileStorageAdapter
     hooks.js      # Sistema de hooks async
     auth.js       # bcrypt + JWT
+    search.js     # TF-IDF: buildIndex, search, getOrBuildIndex, invalidateIndex
   models/
     user.js       # Usuarios con validacion, avatar y bio
     post.js       # Posts con relaciones + hooks afterUpdate
@@ -396,24 +422,31 @@ src/
       rate-limit.js # Rate limiting por IP
     routes/
       auth.js
-      posts.js
+      posts.js    # invalidateIndex() tras POST/PATCH/DELETE
       pages.js
       users.js
       taxonomies.js
       webhooks.js
+      search.js   # GET /api/search — usa getOrBuildIndex()
       upload.js   # Subida de imagenes con multer
 
 db/               # Base de datos documental (persistida en repo)
 templates/        # Templates HTML para SSG
 static/assets/    # CSS, JS e imagenes frontend
-public/admin/     # Editor web administrativo
+public/admin/     # Editor web (cola offline, auto-save, guard de navegacion)
+functions/
+  _worker.js      # Cloudflare Worker ESM: API + TF-IDF sobre KV
 .github/workflows/
   deploy.yml      # Workflow de GitHub Actions
 scripts/
-  seed-real.js    # Datos de prueba realistas
-  build-static.js # Generador de sitio estatico
-  serve-static.js # Servidor de preview
-  test-simple.js  # Bateria de pruebas
+  seed-real.js              # Datos de prueba realistas
+  build-static.js           # Generador de sitio estatico (hreflang, locale)
+  serve-static.js           # Servidor de preview
+  test-simple.js            # 33 tests
+  git-sync.js               # Sync db/ a git sin inyeccion de shell
+  migrate-from-sanity.js    # Migracion desde export JSON de Sanity
+  portable-text-converter.js # Portable Text → bloques CMS
+  test-migration-fixture.json # Fixture para probar la migracion
 ```
 
 ## Changelog

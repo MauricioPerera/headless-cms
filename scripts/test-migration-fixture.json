@@ -1,0 +1,227 @@
+{
+  "documents": [
+    {
+      "_type": "author",
+      "_id": "author-001",
+      "name": "Mauricio Perera",
+      "slug": { "current": "mauricio-perera" },
+      "email": "mauricio@example.com",
+      "bio": "Desarrollador full-stack y creador de js-doc-store.",
+      "image": { "asset": { "url": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200" } }
+    },
+    {
+      "_type": "author",
+      "_id": "author-002",
+      "name": "Ana García",
+      "slug": { "current": "ana-garcia" },
+      "email": "ana@example.com",
+      "bio": "Escritora técnica y entusiasta del open source.",
+      "image": { "asset": { "url": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200" } }
+    },
+    {
+      "_type": "category",
+      "_id": "cat-tech",
+      "title": "Tecnología",
+      "slug": { "current": "tecnologia" },
+      "description": "Artículos sobre desarrollo y tecnología."
+    },
+    {
+      "_type": "category",
+      "_id": "cat-cloudflare",
+      "title": "Cloudflare",
+      "slug": { "current": "cloudflare" },
+      "description": "Workers, Pages, KV y el ecosistema Cloudflare."
+    },
+    {
+      "_type": "tag",
+      "_id": "tag-js",
+      "name": "JavaScript",
+      "slug": { "current": "javascript" }
+    },
+    {
+      "_type": "tag",
+      "_id": "tag-nodejs",
+      "name": "Node.js",
+      "slug": { "current": "nodejs" }
+    },
+    {
+      "_type": "tag",
+      "_id": "tag-edge",
+      "name": "Edge Computing",
+      "slug": { "current": "edge-computing" }
+    },
+    {
+      "_type": "post",
+      "_id": "post-001",
+      "title": "Introducción a Cloudflare Workers",
+      "slug": { "current": "introduccion-cloudflare-workers" },
+      "publishedAt": "2024-03-15T10:00:00Z",
+      "excerpt": "Aprende a desplegar código JavaScript en el edge de la red con Cloudflare Workers.",
+      "language": "es",
+      "author": { "_ref": "author-001" },
+      "categories": [{ "_ref": "cat-tech" }, { "_ref": "cat-cloudflare" }],
+      "tags": [{ "_ref": "tag-js" }, { "_ref": "tag-edge" }],
+      "mainImage": {
+        "asset": { "url": "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200" },
+        "alt": "Servidores en un datacenter"
+      },
+      "body": [
+        {
+          "_type": "block",
+          "_key": "b1",
+          "style": "normal",
+          "children": [
+            { "_type": "span", "_key": "s1", "text": "Cloudflare Workers te permite ejecutar código JavaScript directamente en la red de Cloudflare, con más de 300 ubicaciones alrededor del mundo." }
+          ]
+        },
+        {
+          "_type": "block",
+          "_key": "b2",
+          "style": "h2",
+          "children": [
+            { "_type": "span", "_key": "s2", "text": "¿Por qué usar Workers?" }
+          ]
+        },
+        {
+          "_type": "block",
+          "_key": "b3",
+          "style": "normal",
+          "children": [
+            { "_type": "span", "_key": "s3", "text": "La latencia es la principal ventaja: el código se ejecuta a ", "marks": [] },
+            { "_type": "span", "_key": "s4", "text": "menos de 50ms", "marks": ["strong"] },
+            { "_type": "span", "_key": "s5", "text": " del usuario final." }
+          ]
+        },
+        {
+          "_type": "block",
+          "_key": "b4",
+          "style": "normal",
+          "listItem": "bullet",
+          "level": 1,
+          "children": [{ "_type": "span", "text": "Sin cold starts" }]
+        },
+        {
+          "_type": "block",
+          "_key": "b5",
+          "style": "normal",
+          "listItem": "bullet",
+          "level": 1,
+          "children": [{ "_type": "span", "text": "Ejecución global automática" }]
+        },
+        {
+          "_type": "block",
+          "_key": "b6",
+          "style": "normal",
+          "listItem": "bullet",
+          "level": 1,
+          "children": [{ "_type": "span", "text": "100.000 requests/día en el plan gratuito" }]
+        },
+        {
+          "_type": "block",
+          "_key": "b7",
+          "style": "h3",
+          "children": [
+            { "_type": "span", "text": "Ejemplo básico" }
+          ]
+        },
+        {
+          "_type": "code",
+          "_key": "b8",
+          "code": "export default {\n  async fetch(request) {\n    return new Response('Hello from the edge!');\n  }\n};",
+          "language": "javascript"
+        },
+        {
+          "_type": "block",
+          "_key": "b9",
+          "style": "blockquote",
+          "children": [
+            { "_type": "span", "text": "El futuro del compute es distribuido y está en el edge." }
+          ]
+        },
+        {
+          "_type": "image",
+          "_key": "b10",
+          "asset": { "url": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800" },
+          "alt": "Red global de computación"
+        }
+      ]
+    },
+    {
+      "_type": "post",
+      "_id": "post-002",
+      "title": "Node.js vs Deno vs Bun en 2024",
+      "slug": { "current": "nodejs-vs-deno-vs-bun-2024" },
+      "publishedAt": "2024-04-20T14:00:00Z",
+      "excerpt": "Comparativa actualizada de los tres runtimes de JavaScript más populares.",
+      "language": "es",
+      "author": { "_ref": "author-002" },
+      "categories": [{ "_ref": "cat-tech" }],
+      "tags": [{ "_ref": "tag-js" }, { "_ref": "tag-nodejs" }],
+      "mainImage": {
+        "asset": { "url": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200" },
+        "alt": "Código en pantalla"
+      },
+      "body": [
+        {
+          "_type": "block",
+          "style": "normal",
+          "children": [{ "_type": "span", "text": "El ecosistema de JavaScript server-side ha evolucionado enormemente. Hoy tenemos tres opciones maduras: Node.js, Deno y Bun. ¿Cuál elegir?" }]
+        },
+        {
+          "_type": "block",
+          "style": "h2",
+          "children": [{ "_type": "span", "text": "Comparativa de rendimiento" }]
+        },
+        {
+          "_type": "block",
+          "style": "normal",
+          "listItem": "number",
+          "level": 1,
+          "children": [{ "_type": "span", "text": "Bun: el más rápido en startup y HTTP raw" }]
+        },
+        {
+          "_type": "block",
+          "style": "normal",
+          "listItem": "number",
+          "level": 1,
+          "children": [{ "_type": "span", "text": "Deno: el más seguro por defecto (permisos explícitos)" }]
+        },
+        {
+          "_type": "block",
+          "style": "normal",
+          "listItem": "number",
+          "level": 1,
+          "children": [{ "_type": "span", "text": "Node.js: el ecosistema más maduro y compatible" }]
+        },
+        {
+          "_type": "block",
+          "style": "h2",
+          "children": [{ "_type": "span", "text": "Conclusión" }]
+        },
+        {
+          "_type": "block",
+          "style": "normal",
+          "children": [{ "_type": "span", "text": "Para proyectos en producción con mucho código legacy, Node.js sigue siendo la opción más segura. Para proyectos nuevos donde el rendimiento importa, Bun es la apuesta más interesante de 2024." }]
+        }
+      ]
+    },
+    {
+      "_type": "post",
+      "_id": "post-003",
+      "title": "Post con autor inexistente (test de robustez)",
+      "slug": { "current": "test-autor-inexistente" },
+      "publishedAt": "2024-05-01T00:00:00Z",
+      "excerpt": "Este post testea que la migración no falla si el autor no existe.",
+      "author": { "_ref": "author-999-no-existe" },
+      "categories": [],
+      "tags": [],
+      "body": [
+        {
+          "_type": "block",
+          "style": "normal",
+          "children": [{ "_type": "span", "text": "El authorId quedará null pero el post se migra igual." }]
+        }
+      ]
+    }
+  ]
+}

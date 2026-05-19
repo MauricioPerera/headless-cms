@@ -4,10 +4,36 @@
 
 function portableTextToBlocks(portableText) {
   if (!Array.isArray(portableText)) return [];
+
   const blocks = [];
+  let currentList = null; // { type: 'list', items: [], ordered: bool }
+
+  function flushList() {
+    if (currentList && currentList.items.length > 0) {
+      blocks.push(currentList);
+    }
+    currentList = null;
+  }
 
   for (const node of portableText) {
     if (!node || !node._type) continue;
+
+    // List items: Sanity uses block nodes with a `listItem` property
+    if (node._type === 'block' && node.listItem) {
+      const ordered = node.listItem === 'number';
+      const text = extractText(node);
+      if (!text.trim()) continue;
+
+      if (!currentList || currentList.ordered !== ordered) {
+        flushList();
+        currentList = { type: 'list', items: [], ordered };
+      }
+      currentList.items.push(text);
+      continue;
+    }
+
+    // Non-list node: flush any open list first
+    flushList();
 
     switch (node._type) {
       case 'block': {
@@ -26,46 +52,34 @@ function portableTextToBlocks(portableText) {
         break;
       }
       case 'image': {
-        blocks.push({
-          type: 'image',
-          src: node.asset?.url || node.src || '',
-          alt: node.alt || '',
-        });
+        const src = node.asset?.url || node.src || '';
+        if (src) blocks.push({ type: 'image', src, alt: node.alt || '' });
         break;
       }
       case 'code': {
-        blocks.push({
-          type: 'code',
-          text: node.code || '',
-        });
+        const text = node.code || '';
+        if (text) blocks.push({ type: 'code', text });
         break;
       }
       default: {
-        // Unknown type → paragraph as fallback
+        // Unknown type → try to extract text as paragraph fallback
         const text = extractText(node);
         if (text.trim()) blocks.push({ type: 'paragraph', text });
       }
     }
   }
 
+  // Flush any trailing list
+  flushList();
+
   return blocks;
 }
 
 function extractText(blockNode) {
   if (!blockNode.children) return '';
-  return blockNode.children.map(child => {
-    if (child._type === 'span') {
-      let text = child.text || '';
-      const marks = child.marks || [];
-      if (marks.includes('strong') || marks.includes('em')) {
-        // Our system doesn't support inline marks; flatten to plain text
-        return text;
-      }
-      return text;
-    }
-    if (child.text) return child.text;
-    return '';
-  }).join('');
+  return blockNode.children
+    .map(child => (child._type === 'span' || child.text) ? (child.text || '') : '')
+    .join('');
 }
 
 module.exports = { portableTextToBlocks };
