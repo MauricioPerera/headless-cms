@@ -13,7 +13,8 @@
     "deploy:cloudflare": "wrangler pages deploy dist --project-name=headless-cms --branch=master",
     "sync:kv": "node scripts/sync-db-to-kv.js",
     "sync:kv:down": "node scripts/sync-kv-to-db.js",
-    "sync:git": "node scripts/git-sync.js"
+    "sync:git": "node scripts/git-sync.js",
+    "migrate:sanity": "node scripts/migrate-from-sanity.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
