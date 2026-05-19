@@ -220,17 +220,23 @@ function ensureIndexes(collection, indexDefs) {
   }
 }
 
-async function buildLocale(locale, siteDistDir) {
-  const localeBasePath = locale === 'es' ? CONFIG.basePath : CONFIG.basePath + locale + '/';
-  const localeSiteUrl = locale === 'es' ? CONFIG.siteUrl : CONFIG.siteUrl + locale + '/';
+async function build() {
+  console.log('Building static site...');
 
-  // Filter content by locale (default 'es')
-  const publishedPosts = postsCol.find({ status: 'published' }).sort('publishedAt', -1).toArray()
-    .filter(p => (p.locale || 'es') === locale);
+  if (!fs.existsSync(DB_DIR) || fs.readdirSync(DB_DIR).length === 0) {
+    console.error('ERROR: No se encontro la base de datos en db/');
+    console.error('Ejecuta primero: npm run seed');
+    console.error('Luego commitea la carpeta db/ para que el deploy la incluya.');
+    process.exit(1);
+  }
+
+  cleanDist();
+  copyStatic();
+
+  const publishedPosts = postsCol.find({ status: 'published' }).sort('publishedAt', -1).toArray();
   const allUsers = usersCol.find({}).toArray();
   const allTaxonomies = taxCol.find({}).toArray();
-  const allPages = pagesCol.find({}).sort('createdAt', -1).toArray()
-    .filter(p => (p.locale || 'es') === locale);
+  const allPages = pagesCol.find({}).sort('createdAt', -1).toArray();
 
   const userMap = new Map(allUsers.map(u => [u._id, u]));
   const taxMap = new Map(allTaxonomies.map(t => [t._id, t]));
@@ -250,8 +256,8 @@ async function buildLocale(locale, siteDistDir) {
       readTime: (post.meta && post.meta.readTime) ? post.meta.readTime : 5,
       featuredImage: post.featuredImage ? (typeof post.featuredImage === "string" ? { src: post.featuredImage, alt: post.title } : { src: post.featuredImage.src, alt: post.featuredImage.alt || post.title, caption: post.featuredImage.caption || "" }) : null,
       author: author ? { displayName: author.displayName || author.username, avatar: author.avatar, bio: author.bio || '' } : null,
-      categories: categories.map(t => ({ ...t, basePath: localeBasePath })),
-      tags: tags.map(t => ({ ...t, basePath: localeBasePath })),
+      categories: categories.map(t => ({ ...t, basePath: CONFIG.basePath })),
+      tags: tags.map(t => ({ ...t, basePath: CONFIG.basePath })),
     };
   });
 
@@ -265,8 +271,8 @@ async function buildLocale(locale, siteDistDir) {
 
   // Posts
   for (const post of enrichedPosts) {
-    const postHtml = render(postTpl, { ...post, basePath: localeBasePath });
-    const canonicalUrl = localeSiteUrl + 'posts/' + post.slug + '.html';
+    const postHtml = render(postTpl, { ...post, basePath: CONFIG.basePath });
+    const canonicalUrl = CONFIG.siteUrl + 'posts/' + post.slug + '.html';
     const ogImage = post.featuredImage ? post.featuredImage.src : CONFIG.siteOgImage;
     const schemaJson = buildSchemaJson('BlogPosting', {
       title: post.title,
@@ -277,18 +283,16 @@ async function buildLocale(locale, siteDistDir) {
       dateModified: post.updatedAt || post.createdAt,
       author: post.author ? { displayName: post.author.displayName, avatar: post.author.avatar, bio: post.author.bio } : null,
       siteName: CONFIG.siteName,
-      siteUrl: localeSiteUrl,
+      siteUrl: CONFIG.siteUrl,
     });
     const breadcrumb = buildBreadcrumbs([{ name: post.title, url: canonicalUrl }]);
     const fullHtml = render(layoutTpl, {
-      langClassEs: locale === 'es' ? 'active' : '',
-      langClassEn: locale === 'en' ? 'active' : '',
       title: post.title,
       description: post.excerpt,
       siteName: CONFIG.siteName,
-      basePath: localeBasePath,
+      basePath: CONFIG.basePath,
       content: postHtml,
-      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: localeBasePath })),
+      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
       canonicalUrl,
       locale: post.locale || 'es',
       defaultUrl: canonicalUrl,
@@ -299,7 +303,7 @@ async function buildLocale(locale, siteDistDir) {
       schemaJson,
       breadcrumb,
     });
-    writeFile(path.join(siteDistDir, 'posts', `${post.slug}.html`), fullHtml);
+    writeFile(path.join(DIST_DIR, 'posts', `${post.slug}.html`), fullHtml);
   }
   console.log(`  Generated ${enrichedPosts.length} post pages`);
 
@@ -309,12 +313,12 @@ async function buildLocale(locale, siteDistDir) {
   for (let page = 1; page <= totalPages; page++) {
     const start = (page - 1) * perPage;
     const pagePosts = enrichedPosts.slice(start, start + perPage);
-    const prevPage = page > 1 ? (page === 2 ? localeBasePath : localeBasePath + 'page/' + (page - 1) + '.html') : null;
-    const nextPage = page < totalPages ? localeBasePath + 'page/' + (page + 1) + '.html' : null;
+    const prevPage = page > 1 ? (page === 2 ? CONFIG.basePath : CONFIG.basePath + 'page/' + (page - 1) + '.html') : null;
+    const nextPage = page < totalPages ? CONFIG.basePath + 'page/' + (page + 1) + '.html' : null;
     const pageHtml = render(indexTpl, {
       siteName: CONFIG.siteName,
       siteDescription: CONFIG.siteDescription,
-      basePath: localeBasePath,
+      basePath: CONFIG.basePath,
       posts: pagePosts,
       currentPage: page,
       totalPages,
@@ -324,32 +328,30 @@ async function buildLocale(locale, siteDistDir) {
     const schemaJson = buildSchemaJson('WebSite', {
       siteName: CONFIG.siteName,
       description: CONFIG.siteDescription,
-      siteUrl: localeSiteUrl,
+      siteUrl: CONFIG.siteUrl,
     });
-    const indexCanonical = page === 1 ? localeSiteUrl : localeSiteUrl + 'page/' + page + '.html';
+    const indexCanonical = page === 1 ? CONFIG.siteUrl : CONFIG.siteUrl + 'page/' + page + '.html';
     const pageFull = render(layoutTpl, {
-      langClassEs: locale === 'es' ? 'active' : '',
-      langClassEn: locale === 'en' ? 'active' : '',
       title: page === 1 ? 'Inicio' : `Pagina ${page}`,
       description: CONFIG.siteDescription,
       siteName: CONFIG.siteName,
-      basePath: localeBasePath,
+      basePath: CONFIG.basePath,
       content: pageHtml,
-      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: localeBasePath })),
+      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
       canonicalUrl: indexCanonical,
       locale: 'es',
-      defaultUrl: localeSiteUrl,
+      defaultUrl: CONFIG.siteUrl,
       ogTitle: CONFIG.siteName,
       ogDescription: CONFIG.siteDescription,
-      ogImage: CONFIG.siteOgImage || localeSiteUrl,
+      ogImage: CONFIG.siteOgImage || CONFIG.siteUrl,
       ogType: 'website',
       schemaJson,
       breadcrumb: [],
     });
     if (page === 1) {
-      writeFile(path.join(siteDistDir, 'index.html'), pageFull);
+      writeFile(path.join(DIST_DIR, 'index.html'), pageFull);
     } else {
-      writeFile(path.join(siteDistDir, 'page', `${page}.html`), pageFull);
+      writeFile(path.join(DIST_DIR, 'page', `${page}.html`), pageFull);
     }
   }
   console.log(`  Generated ${totalPages} index pages`);
@@ -364,7 +366,7 @@ async function buildLocale(locale, siteDistDir) {
       taxonomyName: tax.name,
       taxonomyType: tax.type === 'category' ? 'Categoria' : 'Tag',
       taxonomyDescription: tax.description || '',
-      basePath: localeBasePath,
+      basePath: CONFIG.basePath,
       posts: taxPosts.map(p => ({
         title: p.title,
         slug: p.slug,
@@ -373,7 +375,7 @@ async function buildLocale(locale, siteDistDir) {
         publishedAt: p.publishedAt,
       })),
     });
-    const taxCanonical = localeSiteUrl + (tax.type === 'category' ? 'categories/' : 'tags/') + tax.slug + '.html';
+    const taxCanonical = CONFIG.siteUrl + (tax.type === 'category' ? 'categories/' : 'tags/') + tax.slug + '.html';
     const schemaJson = buildSchemaJson('CollectionPage', {
       title: tax.name,
       description: tax.description || `Posts en ${tax.name}`,
@@ -381,17 +383,15 @@ async function buildLocale(locale, siteDistDir) {
     });
     const breadcrumb = buildBreadcrumbs([{ name: tax.name, url: taxCanonical }]);
     const taxFull = render(layoutTpl, {
-      langClassEs: locale === 'es' ? 'active' : '',
-      langClassEn: locale === 'en' ? 'active' : '',
       title: tax.name,
       description: tax.description || `Posts en ${tax.name}`,
       siteName: CONFIG.siteName,
-      basePath: localeBasePath,
+      basePath: CONFIG.basePath,
       content: taxHtml,
-      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: localeBasePath })),
+      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
       canonicalUrl: taxCanonical,
       locale: 'es',
-      defaultUrl: localeSiteUrl,
+      defaultUrl: CONFIG.siteUrl,
       ogTitle: tax.name,
       ogDescription: tax.description || `Posts en ${tax.name}`,
       ogImage: CONFIG.siteOgImage || taxCanonical,
@@ -400,26 +400,24 @@ async function buildLocale(locale, siteDistDir) {
       breadcrumb,
     });
     const subdir = tax.type === 'category' ? 'categories' : 'tags';
-    writeFile(path.join(siteDistDir, subdir, `${tax.slug}.html`), taxFull);
+    writeFile(path.join(DIST_DIR, subdir, `${tax.slug}.html`), taxFull);
   }
   console.log(`  Generated ${categoryTaxes.length} category + ${tagTaxes.length} tag pages`);
 
   // Taxonomy index pages
   const catsListHtml = `
     \u003csection\u003e\u003ch1\u003eCategorias\u003c/h1\u003e\u003cdiv class="post-list"\u003e
-      ${categoryTaxes.map(t => `\u003ca class="tag category" href="${localeBasePath}categories/${t.slug}.html"\u003e${escapeHtml(t.name)}\u003c/a\u003e`).join(' ')}
+      ${categoryTaxes.map(t => `\u003ca class="tag category" href="${CONFIG.basePath}categories/${t.slug}.html"\u003e${escapeHtml(t.name)}\u003c/a\u003e`).join(' ')}
     \u003c/div\u003e\u003c/section\u003e`;
-  writeFile(path.join(siteDistDir, 'categories', 'index.html'), render(layoutTpl, {
-      langClassEs: locale === 'es' ? 'active' : '',
-      langClassEn: locale === 'en' ? 'active' : '',
-    title: 'Categorias', description: 'Todas las categorias', siteName: CONFIG.siteName, basePath: localeBasePath, content: catsListHtml,
-    pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: localeBasePath })),
-    canonicalUrl: localeSiteUrl + 'categories/',
+  writeFile(path.join(DIST_DIR, 'categories', 'index.html'), render(layoutTpl, {
+    title: 'Categorias', description: 'Todas las categorias', siteName: CONFIG.siteName, basePath: CONFIG.basePath, content: catsListHtml,
+    pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
+    canonicalUrl: CONFIG.siteUrl + 'categories/',
     locale: 'es',
-    defaultUrl: localeSiteUrl,
+    defaultUrl: CONFIG.siteUrl,
     ogTitle: 'Categorias',
     ogDescription: 'Todas las categorias',
-    ogImage: CONFIG.siteOgImage || localeSiteUrl,
+    ogImage: CONFIG.siteOgImage || CONFIG.siteUrl,
     ogType: 'website',
     schemaJson: '',
     breadcrumb: [],
@@ -427,19 +425,17 @@ async function buildLocale(locale, siteDistDir) {
 
   const tagsListHtml = `
     \u003csection\u003e\u003ch1\u003eTags\u003c/h1\u003e\u003cdiv class="post-list"\u003e
-      ${tagTaxes.map(t => `\u003ca class="tag" href="${localeBasePath}tags/${t.slug}.html"\u003e${escapeHtml(t.name)}\u003c/a\u003e`).join(' ')}
+      ${tagTaxes.map(t => `\u003ca class="tag" href="${CONFIG.basePath}tags/${t.slug}.html"\u003e${escapeHtml(t.name)}\u003c/a\u003e`).join(' ')}
     \u003c/div\u003e\u003c/section\u003e`;
-  writeFile(path.join(siteDistDir, 'tags', 'index.html'), render(layoutTpl, {
-      langClassEs: locale === 'es' ? 'active' : '',
-      langClassEn: locale === 'en' ? 'active' : '',
-    title: 'Tags', description: 'Todos los tags', siteName: CONFIG.siteName, basePath: localeBasePath, content: tagsListHtml,
-    pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: localeBasePath })),
-    canonicalUrl: localeSiteUrl + 'tags/',
+  writeFile(path.join(DIST_DIR, 'tags', 'index.html'), render(layoutTpl, {
+    title: 'Tags', description: 'Todos los tags', siteName: CONFIG.siteName, basePath: CONFIG.basePath, content: tagsListHtml,
+    pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
+    canonicalUrl: CONFIG.siteUrl + 'tags/',
     locale: 'es',
-    defaultUrl: localeSiteUrl,
+    defaultUrl: CONFIG.siteUrl,
     ogTitle: 'Tags',
     ogDescription: 'Todos los tags',
-    ogImage: CONFIG.siteOgImage || localeSiteUrl,
+    ogImage: CONFIG.siteOgImage || CONFIG.siteUrl,
     ogType: 'website',
     schemaJson: '',
     breadcrumb: [],
@@ -447,8 +443,8 @@ async function buildLocale(locale, siteDistDir) {
   console.log('  Generated taxonomy index pages');
   // Pages
   for (const page of allPages) {
-    const pageHtml = render(pageTpl, { ...page, basePath: localeBasePath, content: renderContent(page.content) });
-    const pageCanonical = localeSiteUrl + page.slug + '.html';
+    const pageHtml = render(pageTpl, { ...page, basePath: CONFIG.basePath, content: renderContent(page.content) });
+    const pageCanonical = CONFIG.siteUrl + page.slug + '.html';
     const schemaJson = buildSchemaJson('WebPage', {
       title: page.title,
       description: page.excerpt || page.title,
@@ -456,17 +452,15 @@ async function buildLocale(locale, siteDistDir) {
     });
     const breadcrumb = buildBreadcrumbs([{ name: page.title, url: pageCanonical }]);
     const fullHtml = render(layoutTpl, {
-      langClassEs: locale === 'es' ? 'active' : '',
-      langClassEn: locale === 'en' ? 'active' : '',
       title: page.title,
       description: page.excerpt || page.title,
       siteName: CONFIG.siteName,
-      basePath: localeBasePath,
+      basePath: CONFIG.basePath,
       content: pageHtml,
-      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: localeBasePath })),
+      pages: allPages.map(p => ({ title: p.title, slug: p.slug, basePath: CONFIG.basePath })),
       canonicalUrl: pageCanonical,
       locale: 'es',
-      defaultUrl: localeSiteUrl,
+      defaultUrl: CONFIG.siteUrl,
       ogTitle: page.title,
       ogDescription: page.excerpt || page.title,
       ogImage: CONFIG.siteOgImage || pageCanonical,
@@ -474,15 +468,15 @@ async function buildLocale(locale, siteDistDir) {
       schemaJson,
       breadcrumb,
     });
-    writeFile(path.join(siteDistDir, `${page.slug}.html`), fullHtml);
+    writeFile(path.join(DIST_DIR, `${page.slug}.html`), fullHtml);
   }
   console.log(`  Generated ${allPages.length} page pages`);
 
   // RSS global
   const rssXml = render(rssTpl, {
     siteName: CONFIG.siteName,
-    siteUrl: localeSiteUrl,
-    basePath: localeBasePath,
+    siteUrl: CONFIG.siteUrl,
+    basePath: CONFIG.basePath,
     siteDescription: CONFIG.siteDescription,
     buildDate: buildDate(),
     posts: enrichedPosts.slice(0, 20).map(p => ({
@@ -490,10 +484,10 @@ async function buildLocale(locale, siteDistDir) {
       slug: p.slug,
       excerpt: escapeHtml(p.excerpt),
       rssDate: p.rssDate,
-      basePath: localeBasePath,
+      basePath: CONFIG.basePath,
     })),
   });
-  writeFile(path.join(siteDistDir, 'feed.xml'), rssXml);
+  writeFile(path.join(DIST_DIR, 'feed.xml'), rssXml);
   console.log('  Generated feed.xml');
 
   // RSS por taxonomia
@@ -503,8 +497,8 @@ async function buildLocale(locale, siteDistDir) {
     const subdir = tax.type === 'category' ? 'categories' : 'tags';
     const taxRss = render(rssTpl, {
       siteName: `${CONFIG.siteName} \u2014 ${tax.name}`,
-      siteUrl: `${localeBasePath}${subdir}/${tax.slug}.html`,
-      basePath: localeBasePath,
+      siteUrl: `${CONFIG.basePath}${subdir}/${tax.slug}.html`,
+      basePath: CONFIG.basePath,
       siteDescription: `Posts en ${tax.name}`,
       buildDate: buildDate(),
       posts: taxPosts.slice(0, 20).map(p => ({
@@ -512,16 +506,16 @@ async function buildLocale(locale, siteDistDir) {
         slug: p.slug,
         excerpt: escapeHtml(p.excerpt),
         rssDate: p.rssDate,
-        basePath: localeBasePath,
+        basePath: CONFIG.basePath,
       })),
     });
-    writeFile(path.join(siteDistDir, subdir, `${tax.slug}.xml`), taxRss);
+    writeFile(path.join(DIST_DIR, subdir, `${tax.slug}.xml`), taxRss);
   }
   console.log('  Generated per-taxonomy RSS feeds');
 
   // Sitemap
   const sitemapXml = render(sitemapTpl, {
-    siteUrl: localeSiteUrl,
+    siteUrl: CONFIG.siteUrl,
     buildDate: new Date().toISOString().split('T')[0],
     posts: enrichedPosts.map(p => ({ slug: p.slug, updatedAt: p.updatedAt })),
     taxonomies: allTaxonomies.map(t => ({
@@ -529,12 +523,12 @@ async function buildLocale(locale, siteDistDir) {
       slug: t.slug,
     })),
   });
-  writeFile(path.join(siteDistDir, 'sitemap.xml'), sitemapXml);
+  writeFile(path.join(DIST_DIR, 'sitemap.xml'), sitemapXml);
   console.log('  Generated sitemap.xml');
 
   // JSON API
-  fs.mkdirSync(path.join(siteDistDir, 'api'), { recursive: true });
-  fs.writeFileSync(path.join(siteDistDir, 'api', 'posts.json'), JSON.stringify({
+  fs.mkdirSync(path.join(DIST_DIR, 'api'), { recursive: true });
+  fs.writeFileSync(path.join(DIST_DIR, 'api', 'posts.json'), JSON.stringify({
     posts: enrichedPosts.map(p => ({
       _id: p._id,
       title: p.title,
@@ -549,7 +543,7 @@ async function buildLocale(locale, siteDistDir) {
     total: enrichedPosts.length,
   }, null, 2));
 
-  fs.writeFileSync(path.join(siteDistDir, 'api', 'taxonomies.json'), JSON.stringify({
+  fs.writeFileSync(path.join(DIST_DIR, 'api', 'taxonomies.json'), JSON.stringify({
     taxonomies: allTaxonomies,
     total: allTaxonomies.length,
   }, null, 2));
@@ -557,56 +551,24 @@ async function buildLocale(locale, siteDistDir) {
   const searchIndex = enrichedPosts.map(p => ({
     title: p.title,
     excerpt: p.excerpt,
-    url: `${localeBasePath}posts/${p.slug}.html`,
+    url: `${CONFIG.basePath}posts/${p.slug}.html`,
     tags: p.tags.map(t => t.name).join(' '),
   }));
-  fs.writeFileSync(path.join(siteDistDir, 'api', 'search.json'), JSON.stringify(searchIndex, null, 2));
+  fs.writeFileSync(path.join(DIST_DIR, 'api', 'search.json'), JSON.stringify(searchIndex, null, 2));
   console.log('  Generated JSON API + search index');
 
   require('./build-search-index');
   
   // Copy Cloudflare Pages Functions worker to dist
   const workerSrc = path.join(ROOT, 'functions', '_worker.js');
-  const workerDest = path.join(siteDistDir, '_worker.js');
+  const workerDest = path.join(DIST_DIR, '_worker.js');
   if (fs.existsSync(workerSrc)) {
     fs.copyFileSync(workerSrc, workerDest);
     console.log('  Copied functions/_worker.js to dist');
   }
 
-  console.log(`\nDone. Output: ${siteDistDir}`);
-}
-
-
-async function build() {
-  console.log('Building static site...');
-
-  if (!fs.existsSync(DB_DIR) || fs.readdirSync(DB_DIR).length === 0) {
-    console.error('ERROR: No se encontro la base de datos en db/');
-    console.error('Ejecuta primero: npm run seed');
-    console.error('Luego commitea la carpeta db/ para que el deploy la incluya.');
-    process.exit(1);
-  }
-
-  cleanDist();
-  copyStatic();
-
-  // Detect available locales from published posts
-  const allPublished = postsCol.find({ status: 'published' }).sort('publishedAt', -1).toArray();
-  const locales = [...new Set(allPublished.map(p => p.locale || 'es'))];
-  console.log('  Detected locales:', locales.join(', '));
-
-  for (const locale of locales) {
-    const siteDistDir = locale === 'es' ? DIST_DIR : path.join(DIST_DIR, locale);
-    if (locale !== 'es') {
-      fs.mkdirSync(siteDistDir, { recursive: true });
-    }
-    await buildLocale(locale, siteDistDir);
-    console.log('  Built locale:', locale);
-  }
-
   console.log(`\nDone. Output: ${DIST_DIR}`);
 }
-
 
 build().catch(err => {
   console.error(err);

@@ -36,6 +36,12 @@
     })();
   </script>
   <meta property="og:locale" content="{{locale}}">
+  <style>
+    .lang-switch { display:flex; gap:.35rem; margin-left:auto; font-size:.8rem; }
+    .lang-switch a { padding:.15rem .4rem; border-radius:.25rem; color:var(--muted); text-decoration:none; }
+    .lang-switch a:hover { color:var(--accent); }
+    .lang-switch a.active { background:var(--accent); color:#fff; }
+  </style>
 </head>
 <body>
   <header class="site-header">
@@ -52,9 +58,13 @@
         <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
           <span id="theme-icon"></span>
         </button>
-      </nav>
+            </nav>
+      <div class="lang-switch">
+        <a href="/" class="{{langClassEs}}">ES</a>
+        <a href="/en/" class="{{langClassEn}}">EN</a>
+      </div>
     </div>
-  </header>
+  </header></header>
 
   <nav class="breadcrumbs" aria-label="Breadcrumb">
     <ol itemscope itemtype="https://schema.org/BreadcrumbList">
