@@ -573,6 +573,30 @@ async function buildLocale(locale, siteDistDir) {
     console.log('  Copied functions/_worker.js to dist');
   }
 
+  // Generate customized Service Worker for PWA
+  const swSrc = path.join(STATIC_DIR, 'service-worker.js');
+  if (fs.existsSync(swSrc)) {
+    let swContent = fs.readFileSync(swSrc, 'utf8');
+    const assetPrefix = locale === 'es' ? './assets/' : '../assets/';
+    const swAssets = [
+      "'./'",
+      "'./index.html'",
+      `'${assetPrefix}style.css'`,
+      `'${assetPrefix}app.js'`,
+      `'${assetPrefix}manifest.json'`,
+      `'${assetPrefix}icons/icon-192.svg'`,
+      `'${assetPrefix}icons/icon-512.svg'`,
+      "'./api/search.json'",
+      "'./feed.xml'"
+    ];
+    swContent = swContent.replace(
+      '// __STATIC_ASSETS_PLACEHOLDER__',
+      swAssets.join(',\n  ')
+    );
+    writeFile(path.join(siteDistDir, 'service-worker.js'), swContent);
+    console.log(`  Generated customized PWA service-worker.js for locale: ${locale}`);
+  }
+
   console.log(`\nDone. Output: ${siteDistDir}`);
 }
 

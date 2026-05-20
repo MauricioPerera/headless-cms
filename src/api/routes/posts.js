@@ -6,6 +6,7 @@ const {
   listPosts, countPosts, removePostById
 } = require('../../models/post');
 const { invalidateIndex } = require('../../core/search');
+const { scheduleSync } = require('../../core/git-sync-service');
 
 // Escapa caracteres especiales de regex para evitar ReDoS
 function escapeRegex(text) {
@@ -60,6 +61,7 @@ router.post('/', requireAuth, async (req, res, next) => {
     const doc = { ...req.body, authorId: req.user._id };
     const post = await createPost(doc);
     invalidateIndex();
+    scheduleSync('post created');
     res.status(201).json(post);
   } catch (err) { next(err); }
 });
@@ -73,6 +75,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
     }
     await updatePost({ _id: req.params.id }, { $set: req.body });
     invalidateIndex();
+    scheduleSync('post updated');
     const updated = findPostById(req.params.id);
     res.json(updated);
   } catch (err) { next(err); }
@@ -87,6 +90,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
     }
     removePostById(req.params.id);
     invalidateIndex();
+    scheduleSync('post deleted');
     res.status(204).send();
   } catch (err) { next(err); }
 });

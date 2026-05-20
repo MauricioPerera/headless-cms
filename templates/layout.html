@@ -93,7 +93,7 @@
   <script src="{{basePath}}assets/app.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('{{basePath}}assets/service-worker.js')
+    navigator.serviceWorker.register('{{basePath}}service-worker.js')
       .then(() => console.log('[PWA] Service Worker registrado'))
       .catch((err) => console.warn('[PWA] Fallo registro SW:', err));
   }

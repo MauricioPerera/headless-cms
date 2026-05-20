@@ -5,6 +5,7 @@ const {
   createPage, updatePage, findPageById, findPageBySlug,
   listPages, countPages, removePageById
 } = require('../../models/page');
+const { scheduleSync } = require('../../core/git-sync-service');
 
 router.get('/', async (req, res, next) => {
   try {
@@ -29,6 +30,7 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', requireAuth, requireRole('admin', 'editor'), async (req, res, next) => {
   try {
     const inserted = await createPage(req.body);
+    scheduleSync('page created');
     res.status(201).json(inserted);
   } catch (err) { next(err); }
 });
@@ -37,6 +39,7 @@ router.patch('/:id', requireAuth, requireRole('admin', 'editor'), async (req, re
   try {
     const result = await updatePage({ _id: req.params.id }, { $set: req.body });
     if (!result) return res.status(404).json({ error: 'page not found' });
+    scheduleSync('page updated');
     res.json({ updated: result });
   } catch (err) { next(err); }
 });
@@ -45,6 +48,7 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res, next) 
   try {
     const result = removePageById(req.params.id);
     if (!result) return res.status(404).json({ error: 'page not found' });
+    scheduleSync('page deleted');
     res.json({ deleted: result });
   } catch (err) { next(err); }
 });

@@ -1,14 +1,6 @@
 const CACHE_NAME = 'headless-cms-v1';
 const STATIC_ASSETS = [
-  './',
-  './index.html',
-  './assets/style.css',
-  './assets/app.js',
-  './assets/manifest.json',
-  './assets/icons/icon-192.svg',
-  './assets/icons/icon-512.svg',
-  './api/search.json',
-  './feed.xml'
+  // __STATIC_ASSETS_PLACEHOLDER__
 ];
 
 // Instalacion: cachea assets estaticos
